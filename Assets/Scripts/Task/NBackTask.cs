@@ -1,13 +1,13 @@
-﻿using System;
+using System;
 
 namespace Task
 {
     /// <summary>
-    /// The n-back class contains methods to initialize an n-back task and to run it. 
+    /// The n-back class contains methods to initialize an n-back task and to run it.
     /// It returns for a given <see cref="StimulusDuration"/> the <see cref="Character"/> of a <see cref="CharacterSet"/>.
     /// After that an <see cref="string.Empty"/> is returned for a given <see cref="InterStimulusDuration"/>.
-    /// Once all <see cref="Character"/> are returned, the <see cref="OnTaskFinished"/> event is fired and 
-    /// the <see cref="ErrorRate"/> is calculated. 
+    /// Once all <see cref="Character"/> are returned, the <see cref="OnTaskFinished"/> event is fired and
+    /// the <see cref="ErrorRate"/> is calculated.
     /// </summary>
     class NBackTask : ATask<string>
     {
@@ -66,6 +66,26 @@ namespace Task
 
             return Character;
         }
+
+        /// <summary>
+        /// Ground-truth target rule for the trial at <paramref name="index"/>:
+        /// for n = 0 the letter "X" is a target, for n &gt;= 1 a trial is a target
+        /// when its letter matches the letter n positions earlier.
+        /// </summary>
+        /// <param name="index">The trial index within the <see cref="CharacterSet"/>.</param>
+        /// <returns>True if the trial at <paramref name="index"/> is a target.</returns>
+        public bool IsTargetAt(int index)
+        {
+            if (N == 0 && CharacterSet[index].Equals("X"))
+                return true;
+
+            if (index < N)
+                return false;
+            else if (N > 0 && CharacterSet[index].Equals(CharacterSet[index - N]))
+                return true;
+
+            return false;
+        }
         #endregion
 
         #region Handler
@@ -79,13 +99,19 @@ namespace Task
                 if (IsCorrectAnswer())
                     NumberOfCorrectAnswers++;
 
+                NBackStreaming.NBackEvents.RaiseTrialResult(Index, CharacterSet[Index], IsTargetAt(Index), IsInputTriggered);
+
                 NextCharacter();
+
+                NBackStreaming.NBackEvents.RaiseStimulusOnset(Index, Character, IsTargetAt(Index), N);
 
                 _timer = new Util.Timer(StimulusDuration);
                 _timer.OnTimerEnd += HandleOnTimerEnd;
             }
             else
             {
+                NBackStreaming.NBackEvents.RaiseStimulusOffset(Index, CharacterSet[Index], IsInputTriggered);
+
                 Character = string.Empty;
                 _timer = new Util.Timer(InterStimulusDuration);
                 _timer.OnTimerEnd += HandleOnTimerEnd;
@@ -116,23 +142,16 @@ namespace Task
 
             ErrorRate = Math.Abs((float)NumberOfCorrectAnswers - CharacterSet.Length) / CharacterSet.Length;
 
+            // The final trial is intentionally never scored (historical behavior of
+            // NumberOfCorrectAnswers/ErrorRate), but its per-trial result is still
+            // emitted so the streamed/logged trial data is complete.
+            NBackStreaming.NBackEvents.RaiseTrialResult(Index, CharacterSet[Index], IsTargetAt(Index), IsInputTriggered);
+
             OnTaskFinished?.Invoke(this);
             return true;
         }
 
-        private bool IsCorrectCharacter()
-        {
-            if (N == 0 && CharacterSet[Index].Equals("X"))
-                return true;
-
-            if (Index < N)
-                return false;
-            else if (N > 0 && CharacterSet[Index].Equals(CharacterSet[Index - N]))
-                return true;
-
-            return false;
-        }
+        private bool IsCorrectCharacter() => IsTargetAt(Index);
         #endregion
     }
 }
-

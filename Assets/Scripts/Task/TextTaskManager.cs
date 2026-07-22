@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace Task
@@ -27,6 +27,7 @@ namespace Task
 
         #region Private Variables
         private ATask<string> _task;
+        private int _taskCounter = -1;
         #endregion
 
         #region Public Methods
@@ -48,6 +49,9 @@ namespace Task
             _task = Tasks.Dequeue();
             RunningTask = _task;
             _task.OnTaskFinished += HandleTaskFinished;
+
+            _taskCounter++;
+            NBackStreaming.NBackEvents.RaiseTaskStarted(_taskCounter, _task);
         }
 
         /// <summary>
@@ -76,8 +80,12 @@ namespace Task
 
             OnTaskFinished?.Invoke(task);
 
+            NBackStreaming.NBackEvents.RaiseTaskFinished(_taskCounter, task);
+
             if (Tasks.Count > 0)
                 PrepareTask();
+            else
+                NBackStreaming.NBackEvents.RaiseSessionEnded();
         }
         #endregion
     }

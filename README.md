@@ -16,3 +16,8 @@ This project was developed during my bachelor thesis under Unity v2019. Currentl
 ## Publications 
 To the best of my knowledge, the package was used in the following publications:
 - [M. Lanzer. 2023. "Interaction Effects of Pedestrian Behavior, Smartphone Distraction and External Communication of Automated Vehicles on Crossing and Gaze Behavior". CHI'23. DOI: 10.1145/3544548.3581303](https://dl.acm.org/doi/full/10.1145/3544548.3581303)
+
+## Running the task in VR (Varjo XR-3 + LSL)
+This fork adds a VR study setup: the task is presented on a world-space canvas in a Varjo XR-3 headset, participants respond with the Enter key or a VR controller trigger, and the app publishes task markers, event codes, eye tracking, and head pose as Lab Streaming Layer (LSL) streams (`NBackMarkersLSL`, `NBackEventCodesLSL`, `VarjoEyeTrackingLSL`, `NBackHeadPoseLSL`) for synchronized recording with EEG (e.g. OpenBCI) in LabRecorder. A JSONL backup of all task events is written locally as well.
+
+See **[EXPERIMENTER_GUIDE.md](EXPERIMENTER_GUIDE.md)** for the complete documentation: one-time setup (Unity 6000.3.1f1, Varjo Base, editor menu `NBack VR > Build or Repair VR-N-Back Scene`), task configuration, the session-day run checklist, the full stream/marker reference used for analysis, and troubleshooting.

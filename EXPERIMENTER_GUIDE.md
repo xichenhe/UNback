@@ -1,0 +1,451 @@
+# uNback VR Experimenter Guide (Varjo XR-3 + LSL + EEG)
+
+This guide is for the person running study sessions. It assumes no knowledge of how the
+software was built. Read "One-time setup" once per lab PC; use the "Session-day run
+checklist" for every participant; use the "Stream reference and marker dictionary" and
+"Slicing guide" when analyzing the data.
+
+---
+
+## 1. Overview
+
+The participant wears a **Varjo XR-3** headset and sees the text-based n-back task on a
+floating panel. They respond by pressing **Enter** on a keyboard or **pulling the trigger
+on a VR controller**. While the task runs, the Unity application publishes four
+**Lab Streaming Layer (LSL)** streams:
+
+| What | Stream name |
+|---|---|
+| Human-readable task event markers | `NBackMarkersLSL` |
+| The same events as numeric codes (6 channels) | `NBackEventCodesLSL` |
+| Varjo eye tracking (up to 200 Hz, 39 channels) | `VarjoEyeTrackingLSL` |
+| Headset pose, once per rendered frame (9 channels) | `NBackHeadPoseLSL` |
+
+Alongside these, the **OpenBCI GUI** publishes the EEG as its own LSL stream, and
+**LabRecorder** records everything into a single time-synchronized **XDF** file. If you
+also run CLAdVR-side streams on the same network, LabRecorder can record those into the
+same file too. Independently of LSL, the app writes a **JSONL backup log** of every task
+event to disk, so task data survives even if LSL recording fails.
+
+```
+  Varjo XR-3 HMD  <====>  Varjo Base (compositor, tracking, gaze)
+        ^
+        | display / gaze / pose
+        v
++--------------------------------------+
+|  Unity app (uNback, VR-N-Back scene) |         LSL (localhost / LAN)
+|                                      |
+|   NBackMarkersLSL      (markers) ----+----------------+
+|   NBackEventCodesLSL   (codes)   ----+-------------+  |
+|   VarjoEyeTrackingLSL  (gaze)    ----+----------+  |  |
+|   NBackHeadPoseLSL     (pose)    ----+-------+  |  |  |
+|                                      |       |  |  |  |
+|   JSONL backup -> NBackSessions/     |       v  v  v  v
++--------------------------------------+     +---------------+
+                                             |  LabRecorder  | --> session.xdf
+  OpenBCI EEG cap --> OpenBCI GUI -----------+---------------+
+                      (EEG LSL stream)          ^
+                                                |
+  (optional) CLAdVR-side LSL streams -----------+
+  (optional) PhysioLabXR as live visualizer / alternative recorder
+```
+
+---
+
+## 2. One-time setup (per lab PC)
+
+### 2.1 Required software
+
+| Software | Version / source | Purpose |
+|---|---|---|
+| Unity Hub + **Unity 6000.3.1f1** | Install the editor via Unity Hub | Runs the task |
+| **Varjo Base** | **>= 4.6**, from varjo.com | XR-3 driver/compositor, gaze calibration |
+| **VarjoUnityXRPlugin 3.7.3** | Installed automatically via the project's `Packages/manifest.json` (git URL) — no manual step | Unity <-> Varjo bridge |
+| **OpenBCI GUI** | openbci.com | EEG acquisition, publishes the EEG LSL stream |
+| **LabRecorder** | From the labstreaminglayer GitHub releases | Records all LSL streams to XDF |
+| **PhysioLabXR** (optional) | physiolabxr.org | Live visualization of the streams, or as an alternative recorder |
+
+Also installed automatically via the manifest: the LSL Unity plugin
+(`com.physiolabxr.unityplugin`, which ships `lsl.dll`), XR Interaction Toolkit 3.3.1 and
+XR Plug-in Management 4.4.0.
+
+### 2.2 Opening the project the first time
+
+1. In Unity Hub, add the project folder and open it with **Unity 6000.3.1f1**.
+2. The first open takes a while: Unity resolves the git packages (Varjo plugin, LSL
+   plugin) and recompiles. Wait until the progress bar in the bottom-right disappears and
+   the Console shows no compile errors. An internet connection is required for this first
+   package resolution.
+3. Run the menu item **NBack VR > Enable Varjo XR Loader**. This checks the Varjo loader
+   in *Project Settings > XR Plug-in Management* for Standalone. If it reports an error,
+   do it manually: *Edit > Project Settings > XR Plug-in Management > Windows tab > tick
+   "Varjo"*.
+4. Run **NBack VR > Build or Repair VR-N-Back Scene**. This opens
+   `Assets/Scenes/VR-N-Back.unity` and (idempotently — safe to re-run any time) creates or
+   repairs: the XR rig ("XR Origin (VR)" with a head-tracked camera), the VR-capable
+   EventSystem, the task canvas placed at eye height (position `(0, 1.6, 1.5)`, i.e. 1.5 m
+   in front of the participant), and the "LSL Streaming" object holding all streaming
+   components. It also adds the scene to Build Settings.
+5. Run **NBack VR > Validate Setup** and read the PASS/FAIL report in the Console. It
+   checks: required packages present, Varjo loader assigned, scene wiring complete, and
+   the input setting (`activeInputHandler: 2`) that makes both keyboard and VR controllers
+   work.
+
+### 2.3 Settings that must NOT be changed
+
+- **Graphics API must stay Direct3D 11 or Direct3D 12** (the project default). Varjo does
+  not work with other APIs on Windows.
+- **Keep the Built-in Render Pipeline. Do NOT add/convert to URP.** URP is broken in
+  combination with the Varjo plugin on Unity 6 (Varjo known issues).
+- Keep `Active Input Handling` = *Both* (the project is configured this way; the old
+  keyboard input path and the new VR controller input path both depend on it).
+
+---
+
+## 3. Configuring the n-back task
+
+Everything task-related lives on the **TextTaskCanvas** object (a prefab instance in the
+`VR-N-Back` scene). Select it in the Hierarchy and look at the Inspector.
+
+### 3.1 Component tour (TextTaskCanvas root)
+
+| Component | What it does / what you edit |
+|---|---|
+| `InfoBehaviour` | The instruction screen shown first. Edit its text field to change participant instructions. It stays on screen until the participant responds (Enter / trigger). |
+| `FocusBehaviour` | The fixation screen ("+") shown before a block. Edit its duration (seconds). |
+| `NBackBehaviour` | The n-back block itself — see 3.2. |
+| `TaskManagerBehaviour` | Runs the queue of tasks. No per-study settings. |
+| `KeyboardInputBehaviour` | Maps the **Enter/Return key** to a response. |
+| Child object `Text` | The legacy UI Text element that displays everything (Arial, 64 pt). Leave as is. |
+
+The **"LSL Streaming"** scene object holds `NBackMarkerStreamer`, `NBackEventFileLogger`,
+`VarjoGazeLSLStreamer`, `HeadPoseLSLStreamer` and `ControllerResponseInput`. Defaults are
+correct; things you may want to touch:
+
+- `VarjoGazeLSLStreamer.calibrationKey` — key that triggers gaze calibration in-app
+  (default **F9**).
+- `NBackEventFileLogger.customLogDirectory` — leave empty for the default backup-log
+  location (see 4, step 12).
+- `NBackMarkerStreamer.streamMarkers` — untick only to silence marker streaming (the JSONL
+  backup still logs everything).
+
+### 3.2 NBackBehaviour fields
+
+| Field | Default | Meaning |
+|---|---|---|
+| `_n` | 0 | The n of the n-back. `0` = press on the letter **X**; `n >= 1` = press when the letter matches the one n positions back. |
+| `_characterSet` | 40 letters, 12 of them X | The exact letter sequence shown, in order. Edit it directly for a hand-crafted sequence (one letter per entry). |
+| `_stimulusDuration` | 0.5 | Seconds each letter is shown. |
+| `_interStimulusDuration` | 2.5 | Seconds of blank screen between letters (this is also the response window's tail — responses count during the letter *and* the following blank). |
+| **Sequence Generation (optional)** | | |
+| `_generateSequence` | off | If ticked, `_characterSet` is ignored and a sequence is generated at runtime (and fully recorded in the `task_start` marker, so nothing is lost for analysis). |
+| `_sequenceLength` | 40 | Number of trials in the generated sequence. |
+| `_targetRate` | 0.3 | Fraction of eligible positions that are targets. |
+| `_randomSeed` | 0 | Seed for reproducible sequences. **0 = a time-based seed** (different every run). Use a fixed non-zero seed per participant/condition if you need reproducibility. |
+
+With generation off and defaults untouched, the task behaves exactly like the original
+uNback package.
+
+### 3.3 Multi-block sessions
+
+`TaskManagerBehaviour` collects **all** `TextTaskBehaviour` components in its children
+**in hierarchy order** at startup and runs them one after another. The standard pattern
+per block is **Info → Focus → NBack**:
+
+- Info screen ("Press the trigger when ...") — advances on Enter/trigger,
+- Focus fixation ("+") — fixed duration,
+- the n-back block.
+
+To build e.g. a 0-back block followed by a 2-back block, add a second set of
+`InfoBehaviour`/`FocusBehaviour`/`NBackBehaviour` components (on the canvas root or on
+child objects — child objects are tidier and their top-to-bottom hierarchy order defines
+the run order) and set `_n = 2` on the second `NBackBehaviour`. The session ends
+automatically after the last task (a `session_end` marker is emitted).
+
+### 3.4 Responding and feedback
+
+- A response is **Enter/Return** on the keyboard **or** a **VR controller trigger**
+  (left or right hand) **or** the controller's **primary button**. All are equivalent.
+- On an **incorrect** response the displayed text turns **red** as immediate feedback to
+  the participant.
+- Repeated presses within one trial are all recorded (see the `press=` field of the
+  `response` marker) but do not change scoring.
+
+---
+
+## 4. Session-day run checklist
+
+Do these **in order**. Streams only exist while the Unity app is in Play mode, so the
+order matters.
+
+1. **Power on the Varjo XR-3** and start **Varjo Base**. Wait until Varjo Base shows
+   green/OK status for the headset (tracking + display).
+2. **Fit the EEG cap**, connect the OpenBCI board, and open the **OpenBCI GUI**. Start the
+   data stream, then start its **LSL output** (Networking widget → protocol LSL → Start).
+   **Name the stream and write the name down** — you will need it to find the EEG in
+   LabRecorder and in analysis (it is the only stream whose name is not fixed by this
+   project).
+3. **Launch the task**: open the project in Unity and press **Play** with the
+   `VR-N-Back` scene open (or start the standalone build if you made one). The four
+   `NBack*`/`Varjo*` LSL streams are created at startup.
+4. Put the headset on the participant and run **Varjo gaze calibration**: press **F9**
+   (with the Unity/app window focused) or trigger calibration from Varjo Base. The
+   participant follows the dots. **No gaze data is streamed until calibration succeeds.**
+5. Open **LabRecorder**. Click *Update* and verify **all** of these streams are listed and
+   ticked:
+   - `NBackMarkersLSL`
+   - `NBackEventCodesLSL`
+   - `VarjoEyeTrackingLSL`
+   - `NBackHeadPoseLSL`
+   - your OpenBCI EEG stream (the name from step 2)
+   - any optional CLAdVR-side streams you are also recording
+   If one is missing, see Troubleshooting (section 8) before continuing.
+6. Choose the XDF file name/location in LabRecorder (use your lab's naming scheme, e.g.
+   participant ID + condition + date).
+7. **Start recording in LabRecorder NOW — before the participant starts the task.** The
+   `session_start` and first `task_start` markers must be inside the recording.
+8. Give the participant their instructions verbally; the on-screen Info text is shown in
+   the headset as a reminder.
+9. The participant presses **Enter or the trigger** to advance past the Info screen; the
+   fixation cross and then the task follow automatically.
+10. During the task: monitor LabRecorder (sample counts increasing) and, optionally,
+    PhysioLabXR for live signal quality.
+11. The session **ends by itself after the last task** — the app emits a `session_end`
+    marker. Then **stop the recording in LabRecorder** and stop Unity Play mode.
+12. Where the data is:
+    - **XDF file** — wherever you pointed LabRecorder in step 6. This is the primary data.
+    - **JSONL backup of all task events** — written automatically to
+      `%USERPROFILE%\AppData\LocalLow\DefaultCompany\uNback\NBackSessions\Session_<yyyyMMdd_HHmmss>.jsonl`
+      (one file per app start, one JSON object per line, flushed continuously). Keep it
+      with the XDF; it is your fallback if LSL recording failed.
+
+---
+
+## 5. Stream reference and marker dictionary (analysis contract)
+
+Everything in this section is exact and stable — analysis code should be written against
+it.
+
+### 5.1 The four Unity streams
+
+| Stream name | type | channels | nominal rate | format | source_id |
+|---|---|---|---|---|---|
+| `NBackMarkersLSL` | Markers | 1 | irregular (0) | string | `uNback-markers` |
+| `NBackEventCodesLSL` | Markers | 6 | irregular (0) | float32 | `uNback-eventcodes` |
+| `VarjoEyeTrackingLSL` | GazeData | 39 | 200 | double64 | `uNback-varjo-gaze` |
+| `NBackHeadPoseLSL` | HeadPose | 9 | irregular (0) | double64 | `uNback-headpose` |
+
+`NBackMarkersLSL` and `NBackEventCodesLSL` describe the **same events**; each marker
+string and its numeric code sample are pushed with the **same LSL timestamp**. Use the
+string stream for readability and the code stream for purely numeric pipelines.
+
+### 5.2 Marker string dictionary (`NBackMarkersLSL`)
+
+Format: an event name, then `|`-separated `key=value` fields. Floats have 3 decimals
+unless noted. `<c>` is a single letter. Sequences are concatenated letters (no commas);
+target vectors are strings of `0`/`1` aligned with the sequence. Free text has `|` and
+newlines replaced before embedding.
+
+| Marker | When |
+|---|---|
+| `session_start\|tasks=<int>\|unity_time=<f3>` | App entered Play, task queue prepared. `tasks` = number of tasks in the session. |
+| `task_start\|index=<int>\|type=nback\|n=<int>\|trials=<int>\|stim_dur=<f3>\|isi=<f3>\|sequence=<e.g. SPDXF...>\|targets=<e.g. 00101...>` | An n-back block starts. Contains the **complete ground truth**: full letter sequence and 0/1 target vector. |
+| `task_start\|index=<int>\|type=info\|text=<...>` | Instruction screen shown. |
+| `task_start\|index=<int>\|type=focus\|duration=<f1>` | Fixation screen shown. |
+| `stim_on\|trial=<int>\|letter=<c>\|target=<0\|1>\|n=<int>` | A letter appears. |
+| `stim_off\|trial=<int>\|letter=<c>\|responded=<0\|1>` | The letter disappears (ISI begins). `responded` = whether a press already occurred during the stimulus. |
+| `response\|task_type=<nback\|info\|focus>\|trial=<int>\|letter=<c>\|target=<0\|1>\|class=<hit\|false_alarm\|na>\|rt_stim=<f3\|na>\|rt_trial=<f3\|na>\|phase=<stimulus\|isi\|na>\|press=<int>` | Every keypress/trigger pull. `rt_stim` = seconds since stimulus onset (when available); `rt_trial` additionally covers ISI presses when available. `press` = 1-based count of presses within the current trial. |
+| `trial_result\|trial=<int>\|letter=<c>\|target=<0\|1>\|responded=<0\|1>\|outcome=<hit\|miss\|false_alarm\|correct_rejection>` | Trial scored at the end of its response window. **One per trial, including the final trial** — this is the complete per-trial scoring record. |
+| `task_end\|index=<int>\|type=<...>\|n=<int>\|correct=<int>\|error_rate=<f3>` | Task finished. `correct`/`error_rate` keep the historical semantics (see 7). |
+| `session_end\|unity_time=<f3>` | Last task finished. |
+| `display_on\|text=<...>` | Display-truth: the on-screen text changed to a non-empty value (fires for letters, instructions, fixation cross alike). |
+| `display_off\|prev=<...>` | Display-truth: the screen went blank; `prev` is the text that was removed. |
+
+Notes:
+- **Trial indices are 0-based and restart at 0 in every n-back block.** In multi-block
+  sessions, segment by `task_start` / `task_end` (using their `index=` field) before
+  matching trials.
+- `display_on`/`display_off` are emitted by an end-of-frame comparison of the actual UI
+  text, independent of task logic — they are the ground truth of what was on screen.
+
+### 5.3 Numeric event codes (`NBackEventCodesLSL`, 6 channels, float32)
+
+Channel layout (value `-1` on channels 1–5 means "not applicable"):
+
+| Ch | Content |
+|---|---|
+| 0 | event code (below) |
+| 1 | trial index (0-based; -1 if n/a) |
+| 2 | is target (1/0; -1 if n/a) |
+| 3 | outcome code (below; 0 = n/a) |
+| 4 | reaction time in **ms** (-1 if n/a) |
+| 5 | n of the n-back (-1 if n/a) |
+
+Event codes (channel 0):
+
+| Code | Event | Channels also filled |
+|---|---|---|
+| 1 | session_start | — |
+| 2 | task_start | 5 (n, n-back only) |
+| 3 | stim_on | 1, 2, 5 |
+| 4 | stim_off | 1 |
+| 5 | response | 1, 2, 3 (hit/false alarm), 4 (rt_stim in ms, when available) |
+| 6 | trial_result | 1, 2, 3 |
+| 7 | task_end | 5 (n, n-back only) |
+| 8 | session_end | — |
+| 9 | display_on | — |
+| 10 | display_off | — |
+
+Outcome codes (channel 3): `0` n/a, `1` hit, `2` miss, `3` false_alarm,
+`4` correct_rejection.
+
+### 5.4 `VarjoEyeTrackingLSL` (39 channels, double64, nominal 200 Hz)
+
+Channel layout (byte-compatible with the CLAdVR gaze stream). Gaze vectors are in the
+HMD/tracking frame as provided by the Varjo SDK. Blocks are zeroed when the corresponding
+validity/status flag is Invalid.
+
+| Ch | Content |
+|---|---|
+| 0 | Varjo frame number |
+| 1 | capture timestamp, LSL time domain (same value used as the sample's timestamp) |
+| 2 | wall-clock time (`DateTime.Now` ticks / ticks-per-millisecond) |
+| 3–5 | HMD camera local position x, y, z |
+| 6–8 | HMD camera local rotation quaternion x, y, z (w intentionally omitted for CLAdVR compatibility — full pose is in `NBackHeadPoseLSL`) |
+| 9 | combined gaze valid (1/0) |
+| 10–12 | combined gaze forward x, y, z |
+| 13–15 | combined gaze origin x, y, z |
+| 16 | IPD (mm) |
+| 17 | left eye valid (1/0) |
+| 18–20 | left gaze forward x, y, z |
+| 21–23 | left gaze origin x, y, z |
+| 24 | left pupil/iris diameter ratio |
+| 25 | left pupil diameter (mm) |
+| 26 | left iris diameter (mm) |
+| 27 | right eye valid (1/0) |
+| 28–30 | right gaze forward x, y, z |
+| 31–33 | right gaze origin x, y, z |
+| 34 | right pupil/iris diameter ratio |
+| 35 | right pupil diameter (mm) |
+| 36 | right iris diameter (mm) |
+| 37 | focus distance (m) |
+| 38 | focus stability |
+
+**Timestamps:** gaze samples arrive from the Varjo SDK in per-frame batches; each sample's
+LSL timestamp is **back-dated to its capture time** (`local_clock() -` the age of the
+sample per Varjo's clock), not the time it was pushed. So gaze timestamps are already
+aligned to acquisition — use them directly.
+
+### 5.5 `NBackHeadPoseLSL` (9 channels, double64, one sample per rendered frame)
+
+| Ch | Content |
+|---|---|
+| 0 | Unity time (`realtimeSinceStartup`, seconds, app-relative — for cross-checking with the JSONL log) |
+| 1–3 | HMD world position x, y, z |
+| 4–7 | HMD world rotation quaternion x, y, z, w |
+| 8 | tracked flag (1) |
+
+### 5.6 JSONL backup log
+
+One JSON object per line, e.g.
+`{"event":"stim_on","iso":"<ISO-8601 local>","unity_time":<sec>,"lsl_time":<LSL clock or null>,"marker":"<the marker string>", ...event fields...}`.
+The `lsl_time` field lets you re-align the backup with the XDF if needed. First line is a
+`log_opened` header.
+
+---
+
+## 6. Slicing guide for analysis (Python + pyxdf)
+
+Install: `pip install pyxdf numpy`. Minimal example — load the XDF, find streams by name,
+epoch EEG around target vs. non-target stimulus onsets, and join per-trial outcomes:
+
+```python
+import numpy as np
+import pyxdf
+
+streams, header = pyxdf.load_xdf("session.xdf")
+
+def by_name(name):
+    return next(s for s in streams if s["info"]["name"][0] == name)
+
+markers = by_name("NBackMarkersLSL")
+eeg     = by_name("obci_eeg1")          # <-- your OpenBCI stream name (noted on session day)
+
+# Parse "event|key=value|key=value" marker strings
+def parse(m):
+    parts = m.split("|")
+    d = {"event": parts[0]}
+    for p in parts[1:]:
+        k, _, v = p.partition("=")
+        d[k] = v
+    return d
+
+events = [(t, parse(s[0])) for t, s in zip(markers["time_stamps"],
+                                           markers["time_series"])]
+
+eeg_t = eeg["time_stamps"]                       # LSL timestamps, shared clock
+eeg_x = np.asarray(eeg["time_series"])           # (samples, channels)
+
+def epoch(t0, tmin=-0.2, tmax=0.8):
+    i0 = np.searchsorted(eeg_t, t0 + tmin)
+    i1 = np.searchsorted(eeg_t, t0 + tmax)
+    return eeg_x[i0:i1]
+
+# Stimulus-locked epochs, split by target status
+target_epochs    = [epoch(t) for t, e in events
+                    if e["event"] == "stim_on" and e["target"] == "1"]
+nontarget_epochs = [epoch(t) for t, e in events
+                    if e["event"] == "stim_on" and e["target"] == "0"]
+
+# Per-trial behavioral outcomes (hit/miss/false_alarm/correct_rejection)
+outcomes = {int(e["trial"]): e["outcome"] for t, e in events
+            if e["event"] == "trial_result"}
+```
+
+For **multi-block** sessions, first split `events` at `task_start`/`task_end` markers
+(trial indices restart per block), then apply the same recipe per block. Reaction times
+come from the `response` markers (`rt_stim`), or from channel 4 of `NBackEventCodesLSL`.
+
+**`display_on`/`display_off` vs `stim_on`/`stim_off`:** these fire on the same frame —
+`stim_on` is the semantic event from the task logic, `display_on` is measured from the
+actual UI text at end of frame. For most analyses `stim_on` is what you want. For strict
+photon-adjacent alignment use the `display_*` markers, and remember both still precede
+light hitting the eye by roughly one frame of rendering plus the HMD's display latency.
+
+---
+
+## 7. Timing notes and known quirks
+
+- **Always use the LSL timestamps.** Never reconstruct event times from the nominal
+  stimulus/ISI durations: phase durations are frame-quantized (the internal timer only
+  fires on a frame boundary, and overshoot is clamped), so real durations are the nominal
+  value rounded up to the frame grid.
+- Markers are emitted in the same call stack as the visual change, i.e. same-frame with
+  the text commit; photon onset in the HMD follows ~1+ frame later (see section 6).
+- Gaze samples are back-dated to capture time (section 5.4) — no extra correction needed.
+- **Known quirk (kept intentionally for historical comparability):** the **final trial**
+  of an n-back block is excluded from the `correct=` and `error_rate=` values in the
+  `task_end` marker. The `trial_result` markers do **not** have this gap — every trial,
+  including the last, gets one. **Use `trial_result` for per-trial scoring**; use
+  `task_end`'s summary only when comparing against legacy uNback results.
+- **Pilot-check your markers once** before the first real participant: record a short
+  session and confirm every trial you care about has the markers your pipeline needs
+  (note that trial 0's letter is already on screen when the block starts, so its onset
+  coincides with `task_start` — the `display_on` markers cover every visual change if you
+  need a per-trial display-truth anchor).
+
+---
+
+## 8. Troubleshooting
+
+| Symptom | Likely cause → fix |
+|---|---|
+| Black screen / no image in the HMD | Varjo loader not enabled → run **NBack VR > Enable Varjo XR Loader** (or tick Varjo in *Project Settings > XR Plug-in Management*). If OpenXR is also installed/checked it can grab the XR session → untick everything except Varjo. If someone added URP → remove it; the project must stay on the Built-in Render Pipeline. |
+| Task canvas not visible in the headset | Rig or canvas moved. The rig belongs at the origin and the canvas at `(0, 1.6, 1.5)` → run **NBack VR > Build or Repair VR-N-Back Scene** to restore. |
+| No gaze data in `VarjoEyeTrackingLSL` | Gaze not calibrated (streaming is gated on successful calibration) → press **F9** with the app focused, or calibrate from Varjo Base, then check again. |
+| No LSL streams visible in LabRecorder | Unity not in Play mode; or `lsl.dll` missing (package didn't resolve — check the Console/`Editor.log` for `DllNotFoundException`); or Windows Firewall blocking Unity/LabRecorder → allow both on private networks. Task events are still saved to the JSONL backup even when LSL is down. |
+| Enter key does nothing | `Active Input Handling` was reset → it must be **Both** (`activeInputHandler: 2` in `ProjectSettings/ProjectSettings.asset`). Run **NBack VR > Validate Setup** to confirm. |
+| Varjo rendering misbehaves on Unity 6 (persistent glitches after the above) | Fallback plan: open the project with **Unity 2022.3.44f1** (installed on the lab PC; the same stack CLAdVR uses). Package versions are pinned, so the project opens there as well. |
+
+When in doubt, run **NBack VR > Validate Setup** — it prints a PASS/FAIL line for each
+requirement — and check `%LOCALAPPDATA%\Unity\Editor\Editor.log` for errors.

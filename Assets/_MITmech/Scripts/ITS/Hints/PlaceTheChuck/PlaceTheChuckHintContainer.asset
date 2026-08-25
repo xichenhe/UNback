@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4290fe5bc5912342bb17f69c69cc155, type: 3}
+  m_Name: PlaceTheChuckHintContainer
+  m_EditorClassIdentifier: 
+  hintIndex: 0
+  hints:
+  - {fileID: 11400000, guid: aa4981bea6a2d7645bea8eeaa410ab2b, type: 2}
+  - {fileID: 11400000, guid: fc0c6ddd66aa6c140904f6fe08f9932e, type: 2}
+  - {fileID: 11400000, guid: f749a6f226dab6e4bad052ceca1b7943, type: 2}
+  - {fileID: 11400000, guid: 836f673153934c8478706b5898e6ff51, type: 2}

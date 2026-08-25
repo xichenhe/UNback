@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4290fe5bc5912342bb17f69c69cc155, type: 3}
+  m_Name: SetSpindleSpeedForCenterDrillingHintContainer
+  m_EditorClassIdentifier: 
+  lastGivenHint: {fileID: 0}
+  hintIndex: 0
+  subTask: {fileID: 11400000, guid: 65122dfe30483c04cb639319386444cc, type: 2}
+  hints:
+  - {fileID: 11400000, guid: 04994d8effcd14e499b6bb008bfb0921, type: 2}
+  - {fileID: 11400000, guid: 276343bde61ccc346813179ef7b63206, type: 2}
+  - {fileID: 11400000, guid: 72c26c775c6dd4a418c5aaa61e1d9f1d, type: 2}
+  completionHint: {fileID: 11400000, guid: b86f33b64138a5e4da4cd4edb75de966, type: 2}
+  subtaskUndidHint: {fileID: 11400000, guid: 2f725c83106bf0b42b0fd56f5ed7fe8f, type: 2}

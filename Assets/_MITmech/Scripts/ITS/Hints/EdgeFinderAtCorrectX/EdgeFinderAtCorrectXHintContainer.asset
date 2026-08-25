@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4290fe5bc5912342bb17f69c69cc155, type: 3}
+  m_Name: EdgeFinderAtCorrectXHintContainer
+  m_EditorClassIdentifier: 
+  lastGivenHint: {fileID: 0}
+  hintIndex: 0
+  subTask: {fileID: 11400000, guid: ff9e6fcd5715cec45bc14d3c3b497cd8, type: 2}
+  hints:
+  - {fileID: 11400000, guid: c14db2900854dc3499932a289deb387f, type: 2}
+  - {fileID: 11400000, guid: 44505eb0f8cd2db419df22299b65e4aa, type: 2}
+  - {fileID: 11400000, guid: 1b00e75d10d9d88469884da06902fad7, type: 2}
+  - {fileID: 11400000, guid: f047bac2ce064774c96c76ac290ec31c, type: 2}
+  completionHint: {fileID: 11400000, guid: 50e20e4bdf1bdb14abf2ee0c4379e8ed, type: 2}
+  subtaskUndidHint: {fileID: 11400000, guid: fd95e518d0ee4d64db3f5ba5f75f5206, type: 2}

@@ -173,6 +173,78 @@ automatically after the last task (a `session_end` marker is emitted).
 
 ---
 
+## 3b. Tool-based n-back (VR-Tool-NBack scene)
+
+Alternative to the text task for calibrating against the CLAdVR machining training:
+instead of letters, the stimuli are the machining **tool models from the `_MITmech`
+tool board** (chuck, chuck key, drill bits, edge finder, mallet, calipers, ...). Each
+tool appears at a **pseudo-random position on a curved fan panel** around the user
+(cylinder section, like a VR virtual desktop), so the participant also moves gaze and
+head. Responses and all LSL markers/JSONL logging work exactly like the text task
+(the `letter=` field of the markers carries the tool name instead of a letter).
+
+- Open `Assets/Scenes/VR-Tool-NBack.unity`. To (re)create it, run
+  **NBack VR > Build Tool NBack Scene** — it clones the VR-N-Back scene, keeps the XR
+  rig and LSL streamers, and swaps the text task for the tool task.
+- Select the **Tool NBack** object. On **ToolNBackManagerBehaviour** set the
+  experimenter parameter **Level**:
+
+  | Level | Task | Pace (stimulus / ISI) | Trials | Duration |
+  |---|---|---|---|---|
+  | `Low` | 0-back — respond whenever the designated target tool appears | 1.5 s / 2.0 s | 40 | 140 s |
+  | `Optimal` | 2-back — respond when the tool matches the one 2 back | 1.5 s / 2.0 s | 40 | 140 s |
+  | `High` | 3-back — respond when the tool matches the one 3 back | 1.5 s / 2.0 s | 40 | 140 s |
+
+  All three levels deliberately share identical timing and trial count, so **N is the
+  only difference between conditions**: every block records the same duration (equal
+  spectral epochs), stimulus/target event counts are near-equal (12/11/11 targets),
+  and the EEG contrast between levels cannot be confounded by stimulus rate.
+
+  Tick **Override Preset** to tune N, durations, trial count, target rate and tool
+  pool size manually. **Random Seed** = 0 gives a fresh sequence each run; any other
+  value reproduces the identical sequence and stimulus positions.
+- The curved panel (radius, horizontal arc, height band, minimum distance between
+  consecutive stimulus positions) and the tool display size/spin are also inspector
+  parameters on the same component. **Panel Pivot Height Meters** sets the height of
+  the panel center above the floor in meters (default 1.6) — set it to the
+  participant's eye height; the scene-view gizmo follows the value live.
+- Pressing Play **without** the headset: the rig uses a floor tracking origin, so the
+  camera would normally sit on the floor. A `DesktopViewFallback` on the rig's Camera
+  Offset raises the camera to the same eye height when no XR device is active, so the
+  Game view faces the panel; with the headset connected it does nothing.
+- **Tool Prefabs** ships with a curated 10-tool list (Mallet, Chuck, Brush, Edge Finder,
+  Parallels, Chuck Key, Deburring Tool, one Drill Bit, Center Drill, Block). Only one of
+  the nine drill-bit variants is included on purpose — the bits are too similar to tell
+  apart as memory stimuli. The first *Tool Pool Size* entries (default 8) form the
+  stimulus pool, so the list order matters. Edit the list in the inspector to change the
+  pool; if you empty it, all tool prefabs are auto-loaded from `_MITmech` with the drill
+  bits again collapsed to one.
+- **0-back target**: by default the target tool is picked at random from the pool each
+  run (**Randomize Target Tool**; reproducible with a fixed Random Seed) and the actual
+  3D tool is shown spinning at the panel center during the countdown, above the written
+  instruction, so the participant sees exactly what to respond to. Untick the option to
+  always use the first Tool Prefabs entry instead. The chosen target's name appears in
+  the instruction text and in every stimulus marker (`letter=`).
+- Participant responds like in the text task: **controller trigger / primary button**,
+  or **Enter/Space** on the keyboard.
+- **Show Response Feedback** (off by default): flashes the visible tool with a green
+  glow on a correct press and red on an incorrect press for ~0.4 s (colors, duration
+  and glow intensity are inspector fields). The flash is a plain material tint on the
+  tool itself — screen-space outline effects are deliberately avoided because they
+  mismatch the Varjo XR-3's multi-view stereo rendering and spam per-frame errors. **Use it for practice blocks only and keep
+  it OFF for recorded EEG blocks** — feedback flashes evoke their own EEG response,
+  and because error rates grow with N, that response would differ by condition and
+  confound the load calibration. Note that only presses get feedback; a missed target
+  shows nothing.
+- On-screen instructions (with a countdown, default 5 s) are shown before the run and
+  a summary at the end with the signal-detection breakdown: hits/targets, false
+  alarms, misses, correct rejections, plus the raw correct count. Judge engagement by
+  **hits and false alarms**, not percent correct — a participant who never responds
+  still scores ~72% "correct" from correct rejections alone (all targets missed), and
+  the summary makes that visible as `Hits: 0/…`.
+
+---
+
 ## 4. Session-day run checklist
 
 Do these **in order**. Streams only exist while the Unity app is in Play mode, so the
@@ -440,6 +512,7 @@ light hitting the eye by roughly one frame of rendering plus the HMD's display l
 
 | Symptom | Likely cause → fix |
 |---|---|
+| _MITmech tools/models render magenta | Their materials were authored for URP (CLAdVR), but this project uses the Built-in RP → run **NBack VR > Convert MITmech URP Materials to Built-in** once and let it finish; the Console prints a per-material summary and an audit PASSED line. |
 | Black screen / no image in the HMD | Varjo loader not enabled → run **NBack VR > Enable Varjo XR Loader** (or tick Varjo in *Project Settings > XR Plug-in Management*). If OpenXR is also installed/checked it can grab the XR session → untick everything except Varjo. If someone added URP → remove it; the project must stay on the Built-in Render Pipeline. |
 | Task canvas not visible in the headset | Rig or canvas moved. The rig belongs at the origin and the canvas at `(0, 1.6, 1.5)` → run **NBack VR > Build or Repair VR-N-Back Scene** to restore. |
 | No gaze data in `VarjoEyeTrackingLSL` | Gaze not calibrated (streaming is gated on successful calibration) → press **F9** with the app focused, or calibrate from Varjo Base, then check again. |

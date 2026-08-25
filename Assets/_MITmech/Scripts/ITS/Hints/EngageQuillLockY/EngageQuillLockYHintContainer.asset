@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4290fe5bc5912342bb17f69c69cc155, type: 3}
+  m_Name: EngageQuillLockYHintContainer
+  m_EditorClassIdentifier: 
+  hintIndex: 0
+  subTask: {fileID: 0}
+  hints:
+  - {fileID: 11400000, guid: ec31a67ea9149804db59e22be5397cf1, type: 2}
+  - {fileID: 11400000, guid: 797b41feb2b82d54e866b0d02f53751c, type: 2}
+  - {fileID: 11400000, guid: 94763cf703cd52048a91150f3f683224, type: 2}
+  completionHint: {fileID: 11400000, guid: 88ba95a3f7fd739429ccd6880f998e0b, type: 2}
+  subtaskUndidHint: {fileID: 11400000, guid: 02b20d9cf97ed894e8bc8d6e60110fec, type: 2}

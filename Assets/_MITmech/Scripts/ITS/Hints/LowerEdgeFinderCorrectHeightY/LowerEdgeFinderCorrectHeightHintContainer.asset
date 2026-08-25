@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4290fe5bc5912342bb17f69c69cc155, type: 3}
+  m_Name: LowerEdgeFinderCorrectHeightHintContainer
+  m_EditorClassIdentifier: 
+  hintIndex: 3
+  subTask: {fileID: 0}
+  hints:
+  - {fileID: 11400000, guid: c18cbb59ecebcc742ac0c15c751b788a, type: 2}
+  - {fileID: 11400000, guid: 2810a363472d7c84194dbfde473ce73b, type: 2}
+  - {fileID: 11400000, guid: 372e90585e4fb9f4b91a6041d6e9acd1, type: 2}
+  completionHint: {fileID: 11400000, guid: b23fef63b4244bc4f9506b84ede45a8a, type: 2}
+  subtaskUndidHint: {fileID: 11400000, guid: 7de09124c6f2e9144bf4c4f778579e37, type: 2}

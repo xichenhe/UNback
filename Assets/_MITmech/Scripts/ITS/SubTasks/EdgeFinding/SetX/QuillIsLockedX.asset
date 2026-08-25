@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 639cda7d0f2fa834cac9faba2487c0cd, type: 3}
+  m_Name: QuillIsLockedX
+  m_EditorClassIdentifier: 
+  CompletedEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  RevertedEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  completed: 0
+  subTaskIndex: 0
+  associatedTask: {fileID: 11400000, guid: d94a1904134511144be7304a332812e8, type: 2}
+  hintContainer: {fileID: 11400000, guid: 327f045115bafac4cacdebc95e068ed9, type: 2}
+  timeOnTask: 12.224774
+  dependantSubTasks: []
+  optimizedDependantSubTasks:
+  - {fileID: 11400000, guid: f79e0d69428faba4189109c4c339e525, type: 2}
+  completedDependantSubTasks:
+  - {fileID: 11400000, guid: f79e0d69428faba4189109c4c339e525, type: 2}

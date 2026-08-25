@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 639cda7d0f2fa834cac9faba2487c0cd, type: 3}
+  m_Name: CheckIfMachineIsOff
+  m_EditorClassIdentifier: 
+  associatedTask: {fileID: 11400000, guid: 54664ff919b837748a1fc46dcd309049, type: 2}
+  hintContainer: {fileID: 11400000, guid: b3847ac47cefa7c4788fe82e4424b53e, type: 2}
+  timeOnTask: 0
+  hintTimes:
+  - 30
+  - 60
+  - 90
+  - 120

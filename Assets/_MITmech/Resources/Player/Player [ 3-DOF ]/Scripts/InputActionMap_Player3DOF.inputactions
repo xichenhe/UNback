@@ -1,0 +1,95 @@
+{
+    "version": 1,
+    "name": "InputActionMap_Player3DOF",
+    "maps": [
+        {
+            "name": "3DoF",
+            "id": "6d175b78-b493-484a-baae-32e25f29b05b",
+            "actions": [
+                {
+                    "name": "MouseX",
+                    "type": "PassThrough",
+                    "id": "4c62f0a5-e87c-4a4c-8fe0-a80154def6c1",
+                    "expectedControlType": "Axis",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "MouseY",
+                    "type": "PassThrough",
+                    "id": "458a62c8-d579-4727-875b-d1121586c954",
+                    "expectedControlType": "Axis",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "Select",
+                    "type": "Button",
+                    "id": "a1828698-fe2e-4558-bea6-12cf224eea0a",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "Activate",
+                    "type": "Button",
+                    "id": "3a1ae301-3520-4f94-96da-b8460ab97686",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                }
+            ],
+            "bindings": [
+                {
+                    "name": "",
+                    "id": "610effff-f844-4ffa-bb2f-4b50eb514f7c",
+                    "path": "<Mouse>/delta/x",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "MouseX",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "af5aa278-35b1-4212-906f-7c8b6d1a6c3b",
+                    "path": "<Mouse>/delta/y",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "MouseY",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "967732e8-b1cf-422b-a0c6-5cb08ca56336",
+                    "path": "<Mouse>/leftButton",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Select",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "f15d91ab-1f27-47a4-862e-85b3ca47aa5a",
+                    "path": "<Mouse>/rightButton",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Activate",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                }
+            ]
+        }
+    ],
+    "controlSchemes": []
+}

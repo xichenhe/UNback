@@ -1,0 +1,19 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 639cda7d0f2fa834cac9faba2487c0cd, type: 3}
+  m_Name: ClearTheDebris
+  m_EditorClassIdentifier: 
+  associatedTask: {fileID: 11400000, guid: 6b7f9381104b0344fa9a691419339b12, type: 2}
+  hintContainer: {fileID: 11400000, guid: e1bb70e8d4a7ec942b108943542ed604, type: 2}
+  timeOnTask: 11.456525
+  dependantSubTasks:
+  - {fileID: 11400000, guid: e605a60cfc83b9c489189cb599a9f907, type: 2}

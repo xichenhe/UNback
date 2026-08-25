@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 639cda7d0f2fa834cac9faba2487c0cd, type: 3}
+  m_Name: TurnMachineOffInstall
+  m_EditorClassIdentifier: 
+  CompletedEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  RevertedEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  completed: 1
+  subTaskIndex: 0
+  associatedTask: {fileID: 11400000, guid: 7ab1b5e84b3d0f84ca91711fc67eaf42, type: 2}
+  hintContainer: {fileID: 11400000, guid: 35e7cd5d01e18574dafb3ba4e2b21c8a, type: 2}
+  nextHintInterval: 120
+  timeOnTask: 90.001396
+  dependantSubTasks: []
+  optimizedDependantSubTasks: []
+  completedDependantSubTasks: []

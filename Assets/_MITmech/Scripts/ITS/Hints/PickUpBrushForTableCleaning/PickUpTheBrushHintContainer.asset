@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4290fe5bc5912342bb17f69c69cc155, type: 3}
+  m_Name: PickUpTheBrushHintContainer
+  m_EditorClassIdentifier: 
+  hintIndex: 1
+  hints:
+  - {fileID: 11400000, guid: 64229f010b6775c43b40a330d491cf36, type: 2}
+  - {fileID: 11400000, guid: 9630785e93b76844a91b418e055f6ab9, type: 2}
+  - {fileID: 11400000, guid: 2123fa71ce57924458a3225c171c9e2d, type: 2}
+  - {fileID: 11400000, guid: 9a4db7462d8df424f86929a6758431be, type: 2}

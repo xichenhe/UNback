@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a002e7098d26f7b499b97095319960c2, type: 3}
+  m_Name: SetXOrigin
+  m_EditorClassIdentifier: 
+  associatedAction: {fileID: 11400000, guid: fe54941c167dce949977ed8396e035b9, type: 2}
+  completed: 1
+  subTasksCompleted:
+  - {fileID: 11400000, guid: f79e0d69428faba4189109c4c339e525, type: 2}
+  - {fileID: 11400000, guid: ea6f68bc960a5404bb7443632ee040fa, type: 2}
+  - {fileID: 11400000, guid: 698f61cc3b7091d4dbab701ae1434994, type: 2}
+  - {fileID: 11400000, guid: ff9e6fcd5715cec45bc14d3c3b497cd8, type: 2}
+  - {fileID: 11400000, guid: 9146f4114564cdd42a26d58633efd876, type: 2}
+  subTasks:
+  - {fileID: 11400000, guid: 6ed2bf303f1eb9d458b3b466e67a816a, type: 2}
+  optimalPaths:
+  - {fileID: 11400000, guid: ea6f68bc960a5404bb7443632ee040fa, type: 2}
+  - {fileID: 11400000, guid: 698f61cc3b7091d4dbab701ae1434994, type: 2}
+  - {fileID: 11400000, guid: ff9e6fcd5715cec45bc14d3c3b497cd8, type: 2}
+  - {fileID: 11400000, guid: 6ed2bf303f1eb9d458b3b466e67a816a, type: 2}
+  - {fileID: 11400000, guid: 9146f4114564cdd42a26d58633efd876, type: 2}

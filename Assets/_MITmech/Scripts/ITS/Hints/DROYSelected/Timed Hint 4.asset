@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7250fdbee2013f244ad66e2e22c844cc, type: 3}
+  m_Name: Timed Hint 4
+  m_EditorClassIdentifier: 
+  severity: 0
+  hintText: 'If you are having trouble selecting the X Button point your hand at
+    the screen on the right known as the DRO until you see a line coming from your
+    hand. Aim the line at the X Button and pull the trigger with your index finger. '
+  ActivateHintEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  DisableHintEvent:
+    m_PersistentCalls:
+      m_Calls: []
+  hintContainer: {fileID: 11400000, guid: 94c1ad05b3759fc45b1e28b9318a7143, type: 2}
+  index: 3
+  waitTime: 30

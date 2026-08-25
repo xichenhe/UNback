@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4290fe5bc5912342bb17f69c69cc155, type: 3}
+  m_Name: TurnOnMachineForCenterDrillHintContainer
+  m_EditorClassIdentifier: 
+  lastGivenHint: {fileID: 0}
+  hintIndex: 0
+  subTask: {fileID: 11400000, guid: 615e564f3473ceb4e890b959a626a50f, type: 2}
+  hints:
+  - {fileID: 11400000, guid: 476163eb02197f34780708bd64b368ec, type: 2}
+  - {fileID: 11400000, guid: b06e954661c561a429eb3c6496be08b2, type: 2}
+  - {fileID: 11400000, guid: 13c47403fb004f74d88a4761972fb379, type: 2}
+  - {fileID: 11400000, guid: a5893ec6195aa3346bf3bb76624372be, type: 2}
+  completionHint: {fileID: 11400000, guid: 9138ce9b3bc1f924c9c7942d1551d68f, type: 2}
+  subtaskUndidHint: {fileID: 11400000, guid: 27cdd73775495794d898cd392680ca00, type: 2}

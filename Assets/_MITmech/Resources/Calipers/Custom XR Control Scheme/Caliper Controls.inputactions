@@ -1,0 +1,107 @@
+{
+    "name": "Caliper Controls",
+    "maps": [
+        {
+            "name": "Slide",
+            "id": "b4071d7a-dff7-4f31-8916-8b8133a67509",
+            "actions": [
+                {
+                    "name": "Slide Adjustment Jaw",
+                    "type": "Value",
+                    "id": "d3fd3182-6e2c-420a-805f-0bd571796b35",
+                    "expectedControlType": "Vector2",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": true
+                },
+                {
+                    "name": "Left Grip Adjustment Jaw Button",
+                    "type": "Button",
+                    "id": "fa6e4d77-82c4-4d63-9982-069a05bc98d5",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "Right Grip Adjustment Jaw Button",
+                    "type": "Button",
+                    "id": "8c845eb3-bd99-4e47-834d-0b8c5d945259",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                }
+            ],
+            "bindings": [
+                {
+                    "name": "",
+                    "id": "94ef3a6f-38c5-4a07-bb9a-c0cdaa047743",
+                    "path": "<XRController>{RightHand}/secondary2DAxis",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "Caliper Slide",
+                    "action": "Slide Adjustment Jaw",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "c585c149-c332-4519-bc55-2403147f4aed",
+                    "path": "<XRController>{LeftHand}/secondary2DAxis",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "Caliper Slide",
+                    "action": "Slide Adjustment Jaw",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "ead3d087-42a5-45db-8058-31b3d8c13668",
+                    "path": "<XRController>{LeftHand}/primaryButton",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "Caliper Slide",
+                    "action": "Left Grip Adjustment Jaw Button",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "51782665-096a-48cc-9e02-44188bede71b",
+                    "path": "<XRController>{RightHand}/primaryButton",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "Caliper Slide",
+                    "action": "Right Grip Adjustment Jaw Button",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                }
+            ]
+        }
+    ],
+    "controlSchemes": [
+        {
+            "name": "Caliper Slide",
+            "bindingGroup": "Caliper Slide",
+            "devices": [
+                {
+                    "devicePath": "<XRController>",
+                    "isOptional": false,
+                    "isOR": false
+                },
+                {
+                    "devicePath": "<XRController>{LeftHand}",
+                    "isOptional": false,
+                    "isOR": false
+                },
+                {
+                    "devicePath": "<XRController>{RightHand}",
+                    "isOptional": false,
+                    "isOR": false
+                }
+            ]
+        }
+    ]
+}

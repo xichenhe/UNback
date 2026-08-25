@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4290fe5bc5912342bb17f69c69cc155, type: 3}
+  m_Name: SetSpindleSpeedXHintContainer
+  m_EditorClassIdentifier: 
+  hintIndex: 2
+  subTask: {fileID: 11400000, guid: 698f61cc3b7091d4dbab701ae1434994, type: 2}
+  hints:
+  - {fileID: 11400000, guid: 6a522272f40360645b0c3323de163f40, type: 2}
+  - {fileID: 11400000, guid: 10ea23cd8a2258b47837ef843434b805, type: 2}
+  - {fileID: 11400000, guid: 20737194d6e00194a8878788578366d6, type: 2}
+  completionHint: {fileID: 11400000, guid: a04d273928e09d846bebc60cc34f74ee, type: 2}
+  subtaskUndidHint: {fileID: 11400000, guid: 7e00aa89aca94184cb52f80e5cf5cd1b, type: 2}

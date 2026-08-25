@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4290fe5bc5912342bb17f69c69cc155, type: 3}
+  m_Name: InstallCenterDrillHintContainer
+  m_EditorClassIdentifier: 
+  lastGivenHint: {fileID: 0}
+  hintIndex: 0
+  subTask: {fileID: 11400000, guid: a6cfafee9e0e70d40831d6d65bdbd95e, type: 2}
+  hints:
+  - {fileID: 11400000, guid: bc30c055c61604a419d7634300a80e38, type: 2}
+  - {fileID: 11400000, guid: 31827945807456f4da0647ca12611e54, type: 2}
+  - {fileID: 11400000, guid: f06faab2f4dc1054382dbde2176fabcc, type: 2}
+  - {fileID: 11400000, guid: d135bb303066551488ebf7c18b857b5f, type: 2}
+  completionHint: {fileID: 11400000, guid: 552f2568f794d9948aba0159a62fda8e, type: 2}
+  subtaskUndidHint: {fileID: 11400000, guid: d57793a51ae1b39419339805eedf898b, type: 2}

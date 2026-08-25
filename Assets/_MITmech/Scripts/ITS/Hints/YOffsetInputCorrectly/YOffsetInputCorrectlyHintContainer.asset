@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4290fe5bc5912342bb17f69c69cc155, type: 3}
+  m_Name: YOffsetInputCorrectlyHintContainer
+  m_EditorClassIdentifier: 
+  hintIndex: 0
+  subTask: {fileID: 11400000, guid: c71d93bd84e89794594fcaaf43e6dc73, type: 2}
+  hints:
+  - {fileID: 11400000, guid: 03c0fc5391dc18a4a9170cf09b3ac2eb, type: 2}
+  - {fileID: 11400000, guid: dd932d35765181445a2f267040b6ea9c, type: 2}
+  - {fileID: 11400000, guid: f6abc11269da043488a55753460fbb82, type: 2}
+  - {fileID: 11400000, guid: fcbd7130016db5f4fb70a7f13daecadd, type: 2}
+  completionHint: {fileID: 11400000, guid: b4b96a873b5967947a9287574da02824, type: 2}
+  subtaskUndidHint: {fileID: 11400000, guid: e79dc3ddd95f9d64a8a89ee934880118, type: 2}

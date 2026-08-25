@@ -147,6 +147,16 @@ namespace NBackStreaming
             TaskStarted?.Invoke(BuildTaskStartedData(taskIndex, task));
         }
 
+        /// <summary>
+        /// Overload for task drivers that build the payload themselves
+        /// (e.g. the tool based n-back, which has no ATask&lt;string&gt;).
+        /// </summary>
+        public static void RaiseTaskStarted(TaskStartedData data)
+        {
+            _pressCountThisTrial = 0;
+            TaskStarted?.Invoke(data);
+        }
+
         public static void RaiseStimulusOnset(int trialIndex, string letter, bool isTarget, int n)
         {
             _pressCountThisTrial = 0;
@@ -191,6 +201,12 @@ namespace NBackStreaming
         public static void RaiseTaskFinished(int taskIndex, Task.ATask<string> task)
         {
             TaskFinished?.Invoke(BuildTaskFinishedData(taskIndex, task));
+        }
+
+        /// <summary>Overload for task drivers that build the payload themselves.</summary>
+        public static void RaiseTaskFinished(TaskFinishedData data)
+        {
+            TaskFinished?.Invoke(data);
         }
 
         public static void RaiseSessionEnded()

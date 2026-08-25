@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4290fe5bc5912342bb17f69c69cc155, type: 3}
+  m_Name: ClearTheDebrisHintContainer
+  m_EditorClassIdentifier: 
+  hintIndex: 0
+  hints:
+  - {fileID: 11400000, guid: 22147eb93d73942438d53e6a44bcb81e, type: 2}
+  - {fileID: 11400000, guid: c40c9950c171732419d45c1166b4edd8, type: 2}
+  - {fileID: 11400000, guid: 78c359d4593ed924d9a5581ed101fb30, type: 2}
+  - {fileID: 11400000, guid: 5cadc07f77523964b86ab958964848cc, type: 2}

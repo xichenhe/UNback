@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f4290fe5bc5912342bb17f69c69cc155, type: 3}
+  m_Name: DROYSelectedHintContainer
+  m_EditorClassIdentifier: 
+  hintIndex: 0
+  subTask: {fileID: 11400000, guid: 5384a15ca187b0c48b64fe74cacc70f5, type: 2}
+  hints:
+  - {fileID: 11400000, guid: 6d80987ac1f1e3248851c08b6386dfce, type: 2}
+  - {fileID: 11400000, guid: c21701c4e94d9b04ea007cdcfb1d796e, type: 2}
+  - {fileID: 11400000, guid: a37caa3efe640ba4992c3d20865883cd, type: 2}
+  - {fileID: 11400000, guid: d3dbb6cf794759340a60bf8ec184d0cb, type: 2}
+  completionHint: {fileID: 11400000, guid: 8974cfac5b3196040a384728627a4e10, type: 2}
+  subtaskUndidHint: {fileID: 11400000, guid: 542162bc329ea2f458b4952f51e50a62, type: 2}

@@ -95026,7 +95026,7 @@ MonoBehaviour:
   _randomSeed: 0
   _randomizeTargetTool: 1
   _startDelay: 5
-  _panelPivotHeightMeters: 0
+  _panelPivotHeightMeters: 1.6
   _panelAnchor: {fileID: 0}
   _panelRadius: 1.2
   _panelArcDegrees: 110
@@ -95046,11 +95046,11 @@ MonoBehaviour:
   - {fileID: 936213822840447267, guid: 80db2804e8ce9c944bb9a22e355507c6, type: 3}
   _toolDisplaySize: 0.22
   _toolSpinSpeed: 40
-  _showResponseFeedback: 1
+  _showResponseFeedback: 0
   _correctFeedbackColor: {r: 0.15, g: 0.9, b: 0.2, a: 1}
   _incorrectFeedbackColor: {r: 0.95, g: 0.15, b: 0.1, a: 1}
   _feedbackDuration: 0.4
-  _feedbackOutlineWidth: 6
+  _feedbackGlowIntensity: 0.6
   _instructionText: {fileID: 0}
 --- !u!4 &1330254857
 Transform:
@@ -95061,7 +95061,7 @@ Transform:
   m_GameObject: {fileID: 1330254855}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 1.6, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -155444,7 +155444,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 4294967295
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &2131047983
 RectTransform:
   m_ObjectHideFlags: 0

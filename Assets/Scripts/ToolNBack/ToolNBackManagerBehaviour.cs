@@ -11,7 +11,7 @@ namespace ToolNBack
     /// Drives the tool based n-back calibration task: shows machining tool prefabs
     /// (from the _MITmech tool board) at pseudo-random positions on a curved fan
     /// panel around the user, like a VR virtual desktop. The experimenter selects
-    /// the cognitive load level (Low / Optimal / High) in the inspector; the task
+    /// the working-memory (WM) load level (Low / Optimal / High) in the inspector; the task
     /// publishes the same LSL markers as the text based n-back via NBackEvents.
     /// </summary>
     public class ToolNBackManagerBehaviour : MonoBehaviour
@@ -20,8 +20,8 @@ namespace ToolNBack
         public const string ToolsResourcePath = "Prefabs/Toolboard/Prefabs/Tools";
 
         [Header("Experimenter Settings")]
-        [Tooltip("Cognitive load level: Low = 0-back, Optimal = 2-back, High = 3-back.")]
-        [SerializeField] private CognitiveLoadLevel _level = CognitiveLoadLevel.Optimal;
+        [Tooltip("Working-memory (WM) load level: Low = 0-back, Optimal = 2-back, High = 3-back.")]
+        [SerializeField] private WMLoadLevel _level = WMLoadLevel.Optimal;
         [Tooltip("When set, the custom settings below replace the level preset.")]
         [SerializeField] private bool _overridePreset;
         [SerializeField] private ToolNBackSettings _customSettings = new ToolNBackSettings
@@ -61,7 +61,7 @@ namespace ToolNBack
         [SerializeField] private float _toolSpinSpeed = 40f;
 
         [Header("Response Feedback (practice blocks only)")]
-        [Tooltip("Outline the visible tool green/red when the participant presses. Keep OFF for EEG recording blocks — feedback-evoked potentials scale with error rate and confound the load calibration. Turn on for practice runs.")]
+        [Tooltip("Outline the visible tool green/red when the participant presses. Keep OFF for EEG recording blocks — feedback-evoked potentials scale with error rate and confound the WM-load calibration. Turn on for practice runs.")]
         [SerializeField] private bool _showResponseFeedback;
         [SerializeField] private Color _correctFeedbackColor = new Color(0.15f, 0.9f, 0.2f);
         [SerializeField] private Color _incorrectFeedbackColor = new Color(0.95f, 0.15f, 0.1f);
@@ -69,6 +69,22 @@ namespace ToolNBack
         [SerializeField] private float _feedbackDuration = 0.4f;
         [Tooltip("Emission strength of the feedback glow.")]
         [SerializeField, Range(0f, 2f)] private float _feedbackGlowIntensity = 0.6f;
+
+        [Header("Multi-Block Session")]
+        [Tooltip("Run a whole session in one Play session: rest baselines around counterbalanced, repeated WM-load task blocks (plus optional practice), all in one continuous recording. Off = classic single block from the Level field.")]
+        [SerializeField] private bool _multiBlockSession;
+        [Tooltip("Which of the 6 counterbalanced level orders to use (e.g. the participant number; applied modulo 6).")]
+        [SerializeField] private int _counterbalanceIndex;
+        [Tooltip("How many recorded task blocks per WM load level.")]
+        [SerializeField, Min(1)] private int _repetitionsPerLevel = 2;
+        [Tooltip("Opening rest baseline in seconds. Long on purpose: it feeds CLAd-EEG's auto-baseline (needs >= 30 s of valid windows) and the frozen EEG artifact-model fit (90 s window).")]
+        [SerializeField, Min(30f)] private float _baselineRestDuration = 90f;
+        [Tooltip("Washout rest between blocks in seconds — just enough for pupil and load state to settle; also contributes baseline-labeled windows. The final washout doubles as the closing baseline.")]
+        [SerializeField, Min(5f)] private float _interBlockRestDuration = 20f;
+        [Tooltip("Insert one practice block (Optimal level, feedback allowed, marked practice=1 in the markers) after the opening rest.")]
+        [SerializeField] private bool _includePracticeBlock = true;
+        [Tooltip("When non-empty, replaces the generated default plan.")]
+        [SerializeField] private List<SessionBlock> _customBlocks = new List<SessionBlock>();
 
         [Header("UI (created automatically when empty)")]
         [SerializeField] private Text _instructionText;
@@ -97,6 +113,22 @@ namespace ToolNBack
         private ToolFeedbackTint[] _toolTints;
         private ToolFeedbackTint _activeTint;
         private float _feedbackRemaining;
+        private bool _feedbackAllowedThisBlock;
+
+        // Multi-block session state.
+        private List<SessionBlock> _plan;
+        private SessionBlock _currentBlock;
+        private int _blockIndex = -1;
+        private bool _inRest;
+        private float _restRemaining;
+        private bool _sessionFinished;
+        private int _completedNonRestBlocks;
+        private int _sessionHits;
+        private int _sessionMisses;
+        private int _sessionFalseAlarms;
+        private int _sessionCorrectRejections;
+        private int _sessionCorrect;
+        private int _sessionTrials;
 
         #region Unity methods
         private void Start()
@@ -105,7 +137,7 @@ namespace ToolNBack
                 _panelAnchor = transform;
             ApplyPanelPivotHeight();
 
-            _settings = _overridePreset ? _customSettings : CognitiveLoadPresets.Get(_level);
+            _settings = _overridePreset ? _customSettings : WMLoadPresets.Get(_level);
             _layout = new CurvedPanelLayout(_panelRadius, _panelArcDegrees, _panelHeightMin, _panelHeightMax);
 
             GameObject[] prefabs = _toolPrefabs != null && _toolPrefabs.Length > 0
@@ -122,14 +154,12 @@ namespace ToolNBack
 
             int poolSize = Mathf.Clamp(_settings.ToolPoolSize, 2, prefabs.Length);
             int seed = _randomSeed == 0 ? Environment.TickCount : _randomSeed;
-            _sequence = ToolNBackSequenceGenerator.Generate(
-                _settings.SequenceLength, _settings.N, _settings.TargetRate, poolSize, seed);
-            _slots = ToolNBackSequenceGenerator.GenerateSlots(
-                _settings.SequenceLength, _minSlotSeparation, seed + 1);
 
             // Core index 0 is the designated 0-back target; place a seeded-random tool
             // there so the target differs between runs but reproduces for a fixed seed
             // (independent random streams: sequence = seed, slots = seed + 1, target = seed + 2).
+            // In multi-block sessions the target is picked once, so every 0-back block
+            // of one session responds to the same tool.
             var pool = (GameObject[])prefabs.Clone();
             if (_randomizeTargetTool)
             {
@@ -151,14 +181,21 @@ namespace ToolNBack
             if (_showResponseFeedback)
                 PrepareFeedbackTints();
 
-            Task = new ToolNBackTask(_sequence, _settings.N,
-                _settings.StimulusDuration, _settings.InterStimulusDuration);
-            Task.StimulusOnset += HandleStimulusOnset;
-            Task.StimulusOffset += HandleStimulusOffset;
-            Task.TrialResult += HandleTrialResult;
-            Task.Finished += HandleFinished;
-
             EnsureInstructionText();
+
+            if (_multiBlockSession)
+            {
+                _plan = _customBlocks != null && _customBlocks.Count > 0
+                    ? new List<SessionBlock>(_customBlocks)
+                    : SessionPlanner.DefaultPlan(_counterbalanceIndex, _repetitionsPerLevel,
+                        _baselineRestDuration, _interBlockRestDuration, _includePracticeBlock);
+                NBackEvents.RaiseSessionStarted(_plan.Count);
+                EnterBlock(0);
+                return;
+            }
+
+            _feedbackAllowedThisBlock = _showResponseFeedback;
+            PrepareBlockTask(seed);
             _delayRemaining = Mathf.Max(0f, _startDelay);
 
             // 0-back: preview the target tool at panel center while the countdown runs,
@@ -178,6 +215,15 @@ namespace ToolNBack
 
         private void Update()
         {
+            if (_sessionFinished)
+                return;
+
+            if (_multiBlockSession && _inRest)
+            {
+                TickRest(Time.deltaTime);
+                return;
+            }
+
             if (Task == null || Task.IsFinished)
                 return;
 
@@ -224,7 +270,9 @@ namespace ToolNBack
             });
 
             // Practice-only visual feedback; presses during the blank gap get none.
-            if (_showResponseFeedback && Task.CurrentTool >= 0)
+            // In multi-block sessions recorded task blocks always suppress it —
+            // feedback-evoked potentials would confound the WM-load contrast.
+            if (_feedbackAllowedThisBlock && Task.CurrentTool >= 0)
                 ShowFeedback(Task.CurrentTool, correct: isTarget);
         }
         #endregion
@@ -275,22 +323,44 @@ namespace ToolNBack
         {
             NBackEvents.RaiseTaskFinished(new TaskFinishedData
             {
-                TaskIndex = 0,
+                TaskIndex = _multiBlockSession ? _blockIndex : 0,
                 Kind = TaskKind.NBack,
                 N = _settings.N,
                 CorrectCount = Task.NumberOfCorrectAnswers,
                 ErrorRate = Task.ErrorRate
             });
-            NBackEvents.RaiseSessionEnded();
 
-            // Raw percent-correct hides disengagement (never responding already scores
-            // all correct rejections), so show the signal-detection breakdown instead.
-            int targets = _hits + _misses;
-            SetInstruction(
-                "Done!\n" +
-                $"Hits: {_hits}/{targets}   False alarms: {_falseAlarms}\n" +
-                $"Misses: {_misses}   Correct rejections: {_correctRejections}\n" +
-                $"Correct: {Task.NumberOfCorrectAnswers}/{_sequence.Length} (error {Task.ErrorRate:P0})");
+            if (!_multiBlockSession)
+            {
+                NBackEvents.RaiseSessionEnded();
+
+                // Raw percent-correct hides disengagement (never responding already scores
+                // all correct rejections), so show the signal-detection breakdown instead.
+                int targets = _hits + _misses;
+                SetInstruction(
+                    "Done!\n" +
+                    $"Hits: {_hits}/{targets}   False alarms: {_falseAlarms}\n" +
+                    $"Misses: {_misses}   Correct rejections: {_correctRejections}\n" +
+                    $"Correct: {Task.NumberOfCorrectAnswers}/{_sequence.Length} (error {Task.ErrorRate:P0})");
+                return;
+            }
+
+            _running = false;
+            _completedNonRestBlocks++;
+
+            // Practice results stay out of the session totals — practice is excluded
+            // from analysis and would skew the summary the experimenter reads.
+            if (_currentBlock.Kind == SessionBlockKind.Task)
+            {
+                _sessionHits += _hits;
+                _sessionMisses += _misses;
+                _sessionFalseAlarms += _falseAlarms;
+                _sessionCorrectRejections += _correctRejections;
+                _sessionCorrect += Task.NumberOfCorrectAnswers;
+                _sessionTrials += _sequence.Length;
+            }
+
+            EnterBlock(_blockIndex + 1);
         }
         #endregion
 
@@ -331,8 +401,139 @@ namespace ToolNBack
             }
 
             SetInstruction(string.Empty);
-            NBackEvents.RaiseSessionStarted(1);
+            if (!_multiBlockSession)
+                NBackEvents.RaiseSessionStarted(1); // multi-block raises it once, in Start
             NBackEvents.RaiseTaskStarted(BuildTaskStartedData());
+        }
+
+        /// <summary>
+        /// (Re)generates sequence and stimulus positions for the current settings and
+        /// wires a fresh core task; per-block counters and countdown state reset.
+        /// </summary>
+        private void PrepareBlockTask(int seed)
+        {
+            int poolSize = Mathf.Clamp(_settings.ToolPoolSize, 2, _toolInstances.Length);
+            _sequence = ToolNBackSequenceGenerator.Generate(
+                _settings.SequenceLength, _settings.N, _settings.TargetRate, poolSize, seed);
+            _slots = ToolNBackSequenceGenerator.GenerateSlots(
+                _settings.SequenceLength, _minSlotSeparation, seed + 1);
+
+            if (Task != null)
+            {
+                Task.StimulusOnset -= HandleStimulusOnset;
+                Task.StimulusOffset -= HandleStimulusOffset;
+                Task.TrialResult -= HandleTrialResult;
+                Task.Finished -= HandleFinished;
+            }
+
+            Task = new ToolNBackTask(_sequence, _settings.N,
+                _settings.StimulusDuration, _settings.InterStimulusDuration);
+            Task.StimulusOnset += HandleStimulusOnset;
+            Task.StimulusOffset += HandleStimulusOffset;
+            Task.TrialResult += HandleTrialResult;
+            Task.Finished += HandleFinished;
+
+            _hits = _misses = _falseAlarms = _correctRejections = 0;
+            _lastCountdownSecond = -1;
+            _running = false;
+        }
+
+        /// <summary>Advances the multi-block session to plan entry <paramref name="index"/>.</summary>
+        private void EnterBlock(int index)
+        {
+            _blockIndex = index;
+            if (index >= _plan.Count)
+            {
+                FinishSession();
+                return;
+            }
+
+            SessionBlock block = _plan[index];
+            _currentBlock = block;
+
+            if (block.Kind == SessionBlockKind.Rest)
+            {
+                _inRest = true;
+                _restRemaining = block.RestDuration;
+                _lastCountdownSecond = -1;
+                ClearFeedback();
+                if (_visibleInstance != null)
+                {
+                    _visibleInstance.SetActive(false);
+                    _visibleInstance = null;
+                }
+                NBackEvents.RaiseTaskStarted(new TaskStartedData
+                {
+                    TaskIndex = index,
+                    Kind = TaskKind.Rest,
+                    N = -1,
+                    FocusDuration = block.RestDuration
+                });
+                UpdateRestText();
+                return;
+            }
+
+            _inRest = false;
+            _settings = _overridePreset ? _customSettings : WMLoadPresets.Get(block.Level);
+            int derived = SessionPlanner.DeriveBlockSeed(_randomSeed, index);
+            PrepareBlockTask(derived == 0 ? Environment.TickCount : derived);
+            _feedbackAllowedThisBlock = block.Kind == SessionBlockKind.Practice && _showResponseFeedback;
+            _delayRemaining = Mathf.Max(0f, _startDelay);
+
+            if (_settings.N == 0 && _delayRemaining > 0f)
+                ShowTargetPreview();
+            if (_delayRemaining > 0f)
+                UpdateCountdownText();
+        }
+
+        /// <summary>Counts down a rest baseline; advances to the next block when it ends.</summary>
+        private void TickRest(float deltaTime)
+        {
+            if (_sessionFinished || !_inRest)
+                return;
+
+            _restRemaining -= deltaTime;
+            if (_restRemaining > 0f)
+            {
+                UpdateRestText();
+                return;
+            }
+
+            _inRest = false;
+            NBackEvents.RaiseTaskFinished(new TaskFinishedData
+            {
+                TaskIndex = _blockIndex,
+                Kind = TaskKind.Rest,
+                N = -1
+            });
+            EnterBlock(_blockIndex + 1);
+        }
+
+        private void UpdateRestText()
+        {
+            int second = Mathf.CeilToInt(Mathf.Max(0f, _restRemaining));
+            if (second == _lastCountdownSecond)
+                return;
+            _lastCountdownSecond = second;
+
+            SetInstruction(
+                "Rest\nRelax, keep still and keep the headset on.\n\n" +
+                $"Continuing in {second}...");
+        }
+
+        /// <summary>Last plan entry done: end the session and show the aggregate summary.</summary>
+        private void FinishSession()
+        {
+            _sessionFinished = true;
+            _inRest = false;
+            NBackEvents.RaiseSessionEnded();
+
+            int targets = _sessionHits + _sessionMisses;
+            SetInstruction(
+                "Session complete!\n" +
+                $"Hits: {_sessionHits}/{targets}   False alarms: {_sessionFalseAlarms}\n" +
+                $"Misses: {_sessionMisses}   Correct rejections: {_sessionCorrectRejections}\n" +
+                $"Correct: {_sessionCorrect}/{_sessionTrials} (recorded task blocks; practice excluded)");
         }
 
         /// <summary>Shows the designated 0-back target tool at panel center during the countdown.</summary>
@@ -463,14 +664,15 @@ namespace ToolNBack
 
             return new TaskStartedData
             {
-                TaskIndex = 0,
+                TaskIndex = _multiBlockSession ? _blockIndex : 0,
                 Kind = TaskKind.NBack,
                 N = _settings.N,
                 TrialCount = _sequence.Length,
                 StimulusDuration = _settings.StimulusDuration,
                 InterStimulusDuration = _settings.InterStimulusDuration,
                 Sequence = string.Join(",", _sequence),
-                Targets = new string(targets)
+                Targets = new string(targets),
+                Practice = _multiBlockSession && _currentBlock.Kind == SessionBlockKind.Practice
             };
         }
 
@@ -521,11 +723,17 @@ namespace ToolNBack
 
         private string BuildInstruction()
         {
-            string levelName = _overridePreset ? "Custom" : _level.ToString();
-            if (_settings.N == 0)
-                return $"Tool N-Back ({levelName}, 0-back)\nRemember the tool shown above:\nrespond whenever the {_toolNames[0]} appears.";
+            string levelName = _overridePreset
+                ? "Custom"
+                : (_multiBlockSession ? _currentBlock.Level : _level).ToString();
+            string prefix = _multiBlockSession && _currentBlock.Kind == SessionBlockKind.Practice
+                ? "PRACTICE - "
+                : string.Empty;
 
-            return $"Tool N-Back ({levelName}, {_settings.N}-back)\n" +
+            if (_settings.N == 0)
+                return $"{prefix}Tool N-Back ({levelName}, 0-back)\nRemember the tool shown above:\nrespond whenever the {_toolNames[0]} appears.";
+
+            return $"{prefix}Tool N-Back ({levelName}, {_settings.N}-back)\n" +
                    $"Respond when the tool matches the one shown {_settings.N} tools earlier.";
         }
 

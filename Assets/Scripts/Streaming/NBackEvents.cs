@@ -11,7 +11,9 @@ namespace NBackStreaming
         Unknown = 0,
         Info = 1,
         Focus = 2,
-        NBack = 3
+        NBack = 3,
+        /// <summary>Rest baseline block of a multi-block tool n-back session.</summary>
+        Rest = 4
     }
 
     /// <summary>
@@ -46,8 +48,10 @@ namespace NBackStreaming
         public string Targets;
         /// <summary>Instruction text (info task only).</summary>
         public string InfoText;
-        /// <summary>Fixation duration in seconds (focus task only).</summary>
+        /// <summary>Fixation/rest duration in seconds (focus and rest tasks only).</summary>
         public float FocusDuration;
+        /// <summary>True for practice n-back blocks (feedback allowed, excluded from analysis).</summary>
+        public bool Practice;
     }
 
     public struct StimulusOnsetData
@@ -322,6 +326,7 @@ namespace NBackStreaming
                 case TaskKind.Info: return "info";
                 case TaskKind.Focus: return "focus";
                 case TaskKind.NBack: return "nback";
+                case TaskKind.Rest: return "rest";
                 default: return "unknown";
             }
         }
@@ -357,11 +362,16 @@ namespace NBackStreaming
             switch (d.Kind)
             {
                 case TaskKind.NBack:
+                    // The practice field is appended only when set, so markers of regular
+                    // blocks (and the text task) keep the exact historical format.
                     return $"task_start|index={d.TaskIndex}|type=nback|n={d.N}|trials={d.TrialCount}" +
                            $"|stim_dur={F(d.StimulusDuration, "F3")}|isi={F(d.InterStimulusDuration, "F3")}" +
-                           $"|sequence={Sanitize(d.Sequence)}|targets={d.Targets}";
+                           $"|sequence={Sanitize(d.Sequence)}|targets={d.Targets}" +
+                           (d.Practice ? "|practice=1" : string.Empty);
                 case TaskKind.Focus:
                     return $"task_start|index={d.TaskIndex}|type=focus|duration={F(d.FocusDuration, "F1")}";
+                case TaskKind.Rest:
+                    return $"task_start|index={d.TaskIndex}|type=rest|duration={F(d.FocusDuration, "F1")}";
                 case TaskKind.Info:
                     return $"task_start|index={d.TaskIndex}|type=info|text={Sanitize(d.InfoText)}";
                 default:
@@ -400,38 +410,81 @@ namespace NBackStreaming
                 ? $"display_on|text={Sanitize(d.Text)}"
                 : $"display_off|prev={Sanitize(d.Previous)}";
 
-        // --- Numeric event-code samples for NBackEventCodesLSL ---
-        // Channels: [0] eventCode, [1] trialIndex, [2] isTarget, [3] outcomeCode, [4] rtMs, [5] n.
-        // -1 encodes "not applicable" on channels 1-5.
+        // --- Numeric event samples for UNbackEventMarkerLSL (CLAd-compatible conventions:
+        // channel 0 = Unity time for LSL<->Unity clock-offset recovery, float32, source_id "").
+        // Channels: [0] unityTime, [1] eventCode, [2] blockIndex, [3] trialIndex,
+        // [4] isTarget, [5] outcomeCode, [6] rtMs, [7] n, [8] blockKind.
+        // -1 encodes "not applicable"; blockKind: 0 rest, 1 practice, 2 recorded n-back, -1 other.
 
-        public static float[] Code(int eventCode, float trial = -1f, float isTarget = -1f,
-            float outcome = 0f, float rtMs = -1f, float n = -1f) =>
-            new[] { eventCode, trial, isTarget, outcome, rtMs, n };
+        /// <summary>Number of channels in the UNbackEventMarkerLSL stream.</summary>
+        public const int EventChannels = 9;
 
-        public static float[] Code(SessionStartedData d) => Code(CodeSessionStart);
+        public const float BlockKindRest = 0f;
+        public const float BlockKindPractice = 1f;
+        public const float BlockKindTask = 2f;
+        public const float BlockKindNA = -1f;
 
-        public static float[] Code(TaskStartedData d) =>
-            Code(CodeTaskStart, n: d.Kind == TaskKind.NBack ? d.N : -1f);
+        /// <summary>
+        /// Derives the block context a task_start establishes; the marker streamer keeps
+        /// it and stamps it on every following event sample of that block.
+        /// </summary>
+        public static MarkerBlockContext BlockContextFrom(TaskStartedData d)
+        {
+            float kind;
+            switch (d.Kind)
+            {
+                case TaskKind.Rest: kind = BlockKindRest; break;
+                case TaskKind.NBack: kind = d.Practice ? BlockKindPractice : BlockKindTask; break;
+                default: kind = BlockKindNA; break;
+            }
 
-        public static float[] Code(StimulusOnsetData d) =>
-            Code(CodeStimOn, d.TrialIndex, d.IsTarget ? 1f : 0f, n: d.N);
+            return new MarkerBlockContext { BlockIndex = d.TaskIndex, BlockKind = kind };
+        }
 
-        public static float[] Code(StimulusOffsetData d) =>
-            Code(CodeStimOff, d.TrialIndex, isTarget: -1f);
+        public static float[] Event(int eventCode, float unityTime, MarkerBlockContext ctx,
+            float trial = -1f, float isTarget = -1f, float outcome = 0f, float rtMs = -1f, float n = -1f) =>
+            new[] { unityTime, eventCode, ctx.BlockIndex, trial, isTarget, outcome, rtMs, n, ctx.BlockKind };
 
-        public static float[] Code(ResponseData d) =>
-            Code(CodeResponse, d.TrialIndex, d.IsTarget ? 1f : 0f, (float)d.Classification,
-                d.HasRt ? d.RtStimulus * 1000f : -1f);
+        public static float[] Event(SessionStartedData d, float unityTime) =>
+            Event(CodeSessionStart, unityTime, MarkerBlockContext.None);
 
-        public static float[] Code(TrialResultData d) =>
-            Code(CodeTrialResult, d.TrialIndex, d.IsTarget ? 1f : 0f, (float)d.Outcome);
+        public static float[] Event(TaskStartedData d, float unityTime) =>
+            Event(CodeTaskStart, unityTime, BlockContextFrom(d),
+                n: d.Kind == TaskKind.NBack ? d.N : -1f);
 
-        public static float[] Code(TaskFinishedData d) =>
-            Code(CodeTaskEnd, n: d.Kind == TaskKind.NBack ? d.N : -1f);
+        public static float[] Event(StimulusOnsetData d, float unityTime, MarkerBlockContext ctx) =>
+            Event(CodeStimOn, unityTime, ctx, d.TrialIndex, d.IsTarget ? 1f : 0f, n: d.N);
 
-        public static float[] SessionEndCode() => Code(CodeSessionEnd);
+        public static float[] Event(StimulusOffsetData d, float unityTime, MarkerBlockContext ctx) =>
+            Event(CodeStimOff, unityTime, ctx, d.TrialIndex);
 
-        public static float[] Code(DisplayChangedData d) =>
-            Code(d.IsOn ? CodeDisplayOn : CodeDisplayOff);
+        public static float[] Event(ResponseData d, float unityTime, MarkerBlockContext ctx) =>
+            Event(CodeResponse, unityTime, ctx, d.TrialIndex, d.IsTarget ? 1f : 0f,
+                (float)d.Classification, d.HasRt ? d.RtStimulus * 1000f : -1f);
+
+        public static float[] Event(TrialResultData d, float unityTime, MarkerBlockContext ctx) =>
+            Event(CodeTrialResult, unityTime, ctx, d.TrialIndex, d.IsTarget ? 1f : 0f, (float)d.Outcome);
+
+        public static float[] Event(TaskFinishedData d, float unityTime, MarkerBlockContext ctx) =>
+            Event(CodeTaskEnd, unityTime, ctx, n: d.Kind == TaskKind.NBack ? d.N : -1f);
+
+        public static float[] SessionEndEvent(float unityTime) =>
+            Event(CodeSessionEnd, unityTime, MarkerBlockContext.None);
+
+        public static float[] Event(DisplayChangedData d, float unityTime, MarkerBlockContext ctx) =>
+            Event(d.IsOn ? CodeDisplayOn : CodeDisplayOff, unityTime, ctx);
+    }
+
+    /// <summary>
+    /// Block identity stamped on UNbackEventMarkerLSL samples: which plan entry is
+    /// running and whether it is a rest baseline, practice, or recorded task block.
+    /// </summary>
+    public struct MarkerBlockContext
+    {
+        public float BlockIndex;
+        public float BlockKind;
+
+        public static readonly MarkerBlockContext None =
+            new MarkerBlockContext { BlockIndex = -1f, BlockKind = -1f };
     }
 }

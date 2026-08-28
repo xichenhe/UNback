@@ -3,9 +3,12 @@ using System;
 namespace ToolNBack
 {
     /// <summary>
-    /// Experimenter-facing cognitive load level of the tool n-back calibration task.
+    /// Experimenter-facing working-memory (WM) load level of the tool n-back
+    /// calibration task. The n-back manipulates WM load specifically — a
+    /// classifier calibrated with it is a WM-load classifier, not a general
+    /// "cognitive workload" classifier.
     /// </summary>
-    public enum CognitiveLoadLevel
+    public enum WMLoadLevel
     {
         Low = 0,
         Optimal = 1,
@@ -14,7 +17,7 @@ namespace ToolNBack
 
     /// <summary>
     /// Concrete parameters of a tool n-back run. Produced from a
-    /// <see cref="CognitiveLoadLevel"/> preset or overridden by the experimenter.
+    /// <see cref="WMLoadLevel"/> preset or overridden by the experimenter.
     /// </summary>
     [Serializable]
     public struct ToolNBackSettings
@@ -34,11 +37,11 @@ namespace ToolNBack
     }
 
     /// <summary>
-    /// Maps the three experimenter-selectable cognitive load levels to task parameters.
+    /// Maps the three experimenter-selectable WM load levels to task parameters.
     /// </summary>
-    public static class CognitiveLoadPresets
+    public static class WMLoadPresets
     {
-        public static ToolNBackSettings Get(CognitiveLoadLevel level)
+        public static ToolNBackSettings Get(WMLoadLevel level)
         {
             // All levels share identical timing, trial count and pool so that N
             // (working-memory load) is the only difference between conditions:
@@ -56,10 +59,10 @@ namespace ToolNBack
 
             switch (level)
             {
-                case CognitiveLoadLevel.Low:
+                case WMLoadLevel.Low:
                     settings.N = 0; // respond whenever the designated target tool appears
                     break;
-                case CognitiveLoadLevel.High:
+                case WMLoadLevel.High:
                     settings.N = 3;
                     break;
             }

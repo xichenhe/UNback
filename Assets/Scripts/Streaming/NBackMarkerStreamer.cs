@@ -6,9 +6,12 @@ namespace NBackStreaming
 {
     /// <summary>
     /// Streams every <see cref="NBackEvents"/> event to two LSL outlets:
-    /// NBackMarkersLSL (1-channel string markers) and NBackEventCodesLSL
-    /// (6-channel numeric event codes). Both outlets receive the same
-    /// <c>LSL.LSL.local_clock()</c> timestamp per event.
+    /// NBackMarkersLSL (1-channel string markers, for LabRecorder/debugging) and
+    /// UNbackEventMarkerLSL (9-channel numeric events following the CLAd
+    /// conventions: channel 0 carries Unity time for LSL&lt;-&gt;Unity clock-offset
+    /// recovery, float32, nominal 75 Hz, empty source_id — PhysioLabXR cannot
+    /// record string streams, so this is the stream its CLAd preset consumes).
+    /// Both outlets receive the same <c>LSL.LSL.local_clock()</c> timestamp per event.
     /// Additionally, a display-truth monitor in <see cref="LateUpdate"/> diffs the
     /// task display text after the frame's task logic has run and raises
     /// display_on / display_off events (mirrored through
@@ -33,9 +36,10 @@ namespace NBackStreaming
 
         #region Private variables
         private StreamOutlet _markerOutlet;
-        private StreamOutlet _codeOutlet;
+        private StreamOutlet _eventOutlet;
         private readonly string[] _markerSample = { string.Empty };
         private string _lastDisplayText = string.Empty;
+        private MarkerBlockContext _blockContext = MarkerBlockContext.None;
         #endregion
 
         #region Unity methods
@@ -99,32 +103,38 @@ namespace NBackStreaming
         #endregion
 
         #region Handler
-        private void HandleSessionStarted(SessionStartedData d) =>
-            Push(NBackMarkerFormat.Marker(d), NBackMarkerFormat.Code(d));
+        private static float Now() => Time.realtimeSinceStartup;
 
-        private void HandleTaskStarted(TaskStartedData d) =>
-            Push(NBackMarkerFormat.Marker(d), NBackMarkerFormat.Code(d));
+        private void HandleSessionStarted(SessionStartedData d) =>
+            Push(NBackMarkerFormat.Marker(d), NBackMarkerFormat.Event(d, Now()));
+
+        private void HandleTaskStarted(TaskStartedData d)
+        {
+            // Every event until the next task_start belongs to this block.
+            _blockContext = NBackMarkerFormat.BlockContextFrom(d);
+            Push(NBackMarkerFormat.Marker(d), NBackMarkerFormat.Event(d, Now()));
+        }
 
         private void HandleStimulusOnset(StimulusOnsetData d) =>
-            Push(NBackMarkerFormat.Marker(d), NBackMarkerFormat.Code(d));
+            Push(NBackMarkerFormat.Marker(d), NBackMarkerFormat.Event(d, Now(), _blockContext));
 
         private void HandleStimulusOffset(StimulusOffsetData d) =>
-            Push(NBackMarkerFormat.Marker(d), NBackMarkerFormat.Code(d));
+            Push(NBackMarkerFormat.Marker(d), NBackMarkerFormat.Event(d, Now(), _blockContext));
 
         private void HandleResponse(ResponseData d) =>
-            Push(NBackMarkerFormat.Marker(d), NBackMarkerFormat.Code(d));
+            Push(NBackMarkerFormat.Marker(d), NBackMarkerFormat.Event(d, Now(), _blockContext));
 
         private void HandleTrialResult(TrialResultData d) =>
-            Push(NBackMarkerFormat.Marker(d), NBackMarkerFormat.Code(d));
+            Push(NBackMarkerFormat.Marker(d), NBackMarkerFormat.Event(d, Now(), _blockContext));
 
         private void HandleTaskFinished(TaskFinishedData d) =>
-            Push(NBackMarkerFormat.Marker(d), NBackMarkerFormat.Code(d));
+            Push(NBackMarkerFormat.Marker(d), NBackMarkerFormat.Event(d, Now(), _blockContext));
 
         private void HandleSessionEnded() =>
-            Push(NBackMarkerFormat.SessionEndMarker(), NBackMarkerFormat.SessionEndCode());
+            Push(NBackMarkerFormat.SessionEndMarker(), NBackMarkerFormat.SessionEndEvent(Now()));
 
         private void HandleDisplayChanged(DisplayChangedData d) =>
-            Push(NBackMarkerFormat.Marker(d), NBackMarkerFormat.Code(d));
+            Push(NBackMarkerFormat.Marker(d), NBackMarkerFormat.Event(d, Now(), _blockContext));
         #endregion
 
         #region Private methods
@@ -141,14 +151,17 @@ namespace NBackStreaming
                     "uNback-markers");
                 _markerOutlet = new StreamOutlet(markerInfo);
 
-                var codeInfo = new StreamInfo(
-                    "NBackEventCodesLSL",
-                    "Markers",
-                    NBackMarkerFormat.CodeChannels,
-                    0,
+                // CLAd conventions: float32, positive nominal rate (PhysioLabXR sizes
+                // its viz buffer from the preset rate and has no string data type),
+                // empty source_id like every CLAdVR outlet.
+                var eventInfo = new StreamInfo(
+                    "UNbackEventMarkerLSL",
+                    "EventMarker",
+                    NBackMarkerFormat.EventChannels,
+                    75,
                     channel_format_t.cf_float32,
-                    "uNback-eventcodes");
-                _codeOutlet = new StreamOutlet(codeInfo);
+                    "");
+                _eventOutlet = new StreamOutlet(eventInfo);
             }
             catch (DllNotFoundException e)
             {
@@ -167,12 +180,12 @@ namespace NBackStreaming
             }
         }
 
-        private void Push(string marker, float[] code)
+        private void Push(string marker, float[] eventSample)
         {
             if (!streamMarkers)
                 return;
 
-            if (_markerOutlet == null && _codeOutlet == null)
+            if (_markerOutlet == null && _eventOutlet == null)
                 return;
 
             double timestamp = LSL.LSL.local_clock();
@@ -184,8 +197,8 @@ namespace NBackStreaming
                 _markerOutlet.push_sample(_markerSample, timestamp);
             }
 
-            if (_codeOutlet != null && code != null)
-                _codeOutlet.push_sample(code, timestamp);
+            if (_eventOutlet != null && eventSample != null)
+                _eventOutlet.push_sample(eventSample, timestamp);
         }
 
         private void DisposeOutlets()
@@ -206,19 +219,19 @@ namespace NBackStreaming
                 }
             }
 
-            if (_codeOutlet != null)
+            if (_eventOutlet != null)
             {
                 try
                 {
-                    _codeOutlet.Dispose();
+                    _eventOutlet.Dispose();
                 }
                 catch (Exception e)
                 {
-                    Debug.LogWarning($"[NBackMarkerStreamer] Error disposing code outlet: {e.Message}");
+                    Debug.LogWarning($"[NBackMarkerStreamer] Error disposing event outlet: {e.Message}");
                 }
                 finally
                 {
-                    _codeOutlet = null;
+                    _eventOutlet = null;
                 }
             }
         }

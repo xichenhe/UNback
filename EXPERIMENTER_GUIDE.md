@@ -1,4 +1,4 @@
-# uNback VR Experimenter Guide (Varjo XR-3 + LSL + EEG)
+# UNback VR Experimenter Guide (Varjo XR-3 + LSL + EEG)
 
 This guide is for the person running study sessions. It assumes no knowledge of how the
 software was built. Read "One-time setup" once per lab PC; use the "Session-day run
@@ -17,14 +17,16 @@ on a VR controller**. While the task runs, the Unity application publishes four
 | What | Stream name |
 |---|---|
 | Human-readable task event markers | `NBackMarkersLSL` |
-| The same events as numeric codes (6 channels) | `NBackEventCodesLSL` |
-| Varjo eye tracking (up to 200 Hz, 39 channels) | `VarjoEyeTrackingLSL` |
+| The same events as numeric samples (9 channels, CLAd conventions) | `UNbackEventMarkerLSL` |
+| Varjo eye tracking (up to 200 Hz, 39 channels, identical to CLAdVR's) | `VarjoEyeTrackingLSL` |
 | Headset pose, once per rendered frame (9 channels) | `NBackHeadPoseLSL` |
 
-Alongside these, the **OpenBCI GUI** publishes the EEG as its own LSL stream, and
-**LabRecorder** records everything into a single time-synchronized **XDF** file. If you
-also run CLAdVR-side streams on the same network, LabRecorder can record those into the
-same file too. Independently of LSL, the app writes a **JSONL backup log** of every task
+Alongside these, the **OpenBCI-to-LSL script** (PhysioLabXR checkout,
+`physiolabxr/examples/OpenBCIExamples/OpenBCIToLSLInterface.py`) publishes the raw and
+preprocessed EEG as LSL streams, and **PhysioLabXR** (experiment preset **CLAd**)
+records everything into one time-synchronized recording — the same preset covers the
+UNback calibration and the CLAdVR training phases, so one continuous recording spans
+both (see 4b). LabRecorder/XDF remains a supported alternative recorder. Independently of LSL, the app writes a **JSONL backup log** of every task
 event to disk, so task data survives even if LSL recording fails.
 
 ```
@@ -36,7 +38,7 @@ event to disk, so task data survives even if LSL recording fails.
 |  Unity app (uNback, VR-N-Back scene) |         LSL (localhost / LAN)
 |                                      |
 |   NBackMarkersLSL      (markers) ----+----------------+
-|   NBackEventCodesLSL   (codes)   ----+-------------+  |
+|   UNbackEventMarkerLSL (events)  ----+-------------+  |
 |   VarjoEyeTrackingLSL  (gaze)    ----+----------+  |  |
 |   NBackHeadPoseLSL     (pose)    ----+-------+  |  |  |
 |                                      |       |  |  |  |
@@ -175,9 +177,9 @@ automatically after the last task (a `session_end` marker is emitted).
 
 ## 3b. Tool-based n-back (VR-Tool-NBack scene)
 
-Alternative to the text task for calibrating against the CLAdVR machining training:
-instead of letters, the stimuli are the machining **tool models from the `_MITmech`
-tool board** (chuck, chuck key, drill bits, edge finder, mallet, calipers, ...). Each
+Alternative to the text task for calibrating the EEG **working-memory (WM) load**
+classifier used with the CLAdVR machining training: instead of letters, the stimuli
+are the machining **tool models from the `_MITmech` tool board** (chuck, chuck key, drill bits, edge finder, mallet, calipers, ...). Each
 tool appears at a **pseudo-random position on a curved fan panel** around the user
 (cylinder section, like a VR virtual desktop), so the participant also moves gaze and
 head. Responses and all LSL markers/JSONL logging work exactly like the text task
@@ -187,7 +189,7 @@ head. Responses and all LSL markers/JSONL logging work exactly like the text tas
   **NBack VR > Build Tool NBack Scene** — it clones the VR-N-Back scene, keeps the XR
   rig and LSL streamers, and swaps the text task for the tool task.
 - Select the **Tool NBack** object. On **ToolNBackManagerBehaviour** set the
-  experimenter parameter **Level**:
+  experimenter parameter **Level** (the WM load level):
 
   | Level | Task | Pace (stimulus / ISI) | Trials | Duration |
   |---|---|---|---|---|
@@ -195,10 +197,11 @@ head. Responses and all LSL markers/JSONL logging work exactly like the text tas
   | `Optimal` | 2-back — respond when the tool matches the one 2 back | 1.5 s / 2.0 s | 40 | 140 s |
   | `High` | 3-back — respond when the tool matches the one 3 back | 1.5 s / 2.0 s | 40 | 140 s |
 
-  All three levels deliberately share identical timing and trial count, so **N is the
-  only difference between conditions**: every block records the same duration (equal
-  spectral epochs), stimulus/target event counts are near-equal (12/11/11 targets),
-  and the EEG contrast between levels cannot be confounded by stimulus rate.
+  All three levels deliberately share identical timing and trial count, so **N — the
+  WM load — is the only difference between conditions**: every block records the same
+  duration (equal spectral epochs), stimulus/target event counts are near-equal
+  (12/11/11 targets), and the EEG contrast between levels cannot be confounded by
+  stimulus rate.
 
   Tick **Override Preset** to tune N, durations, trial count, target rate and tool
   pool size manually. **Random Seed** = 0 gives a fresh sequence each run; any other
@@ -234,7 +237,7 @@ head. Responses and all LSL markers/JSONL logging work exactly like the text tas
   mismatch the Varjo XR-3's multi-view stereo rendering and spam per-frame errors. **Use it for practice blocks only and keep
   it OFF for recorded EEG blocks** — feedback flashes evoke their own EEG response,
   and because error rates grow with N, that response would differ by condition and
-  confound the load calibration. Note that only presses get feedback; a missed target
+  confound the WM-load calibration. Note that only presses get feedback; a missed target
   shows nothing.
 - On-screen instructions (with a countdown, default 5 s) are shown before the run and
   a summary at the end with the signal-detection breakdown: hits/targets, false
@@ -242,6 +245,51 @@ head. Responses and all LSL markers/JSONL logging work exactly like the text tas
   **hits and false alarms**, not percent correct — a participant who never responds
   still scores ~72% "correct" from correct rejections alone (all targets missed), and
   the summary makes that visible as `Hits: 0/…`.
+
+---
+
+## 3c. Multi-block sessions (VR-Tool-NBack-MultiBlock scene)
+
+One Play session — and therefore **one continuous recording** — that runs rest
+baselines, an optional practice block, and counterbalanced, repeated WM-load task
+blocks back to back. Open `Assets/Scenes/VR-Tool-NBack-MultiBlock.unity`: it is the
+tool scene with **Multi Block Session** ticked on the **Tool NBack** object.
+
+- **Default plan**: a long opening rest baseline (**Baseline Rest Duration**,
+  default 90 s — it feeds CLAd-EEG's auto-baseline and the frozen EEG
+  artifact-model fit) → practice (Optimal level, feedback allowed) → then
+  `Repetitions Per Level` x the three levels in the participant's counterbalanced
+  order, **each repetition rotated by one** (A-B-C then B-C-A) — average serial
+  positions stay near-balanced within the participant (the classifier is
+  calibrated per person, so fatigue/drift must not correlate with level inside
+  one session) and no level ever runs in two consecutive blocks.
+  A short washout rest follows every block (**Inter Block Rest Duration**,
+  default 20 s — long enough for tonic pupil and load state to settle; the final
+  washout doubles as the closing baseline). With 2 repetitions: 1 practice + 6
+  task blocks + 8 rests, roughly 21 minutes.
+- **Counterbalance Index**: set it to the participant number. It selects one of the
+  6 level orders (applied modulo 6) — write it down with the session.
+- **Random Seed**: same semantics as the single-block scene. A fixed non-zero seed
+  now derives a *distinct but reproducible* seed per block, so repeated blocks of
+  one level get different sequences, yet the whole session reproduces exactly for
+  the same seed + counterbalance settings. Seed 0 stays time-based (unreproducible).
+- The **0-back target tool is chosen once per session** (seeded), so every Low
+  block responds to the same tool; it is previewed during those blocks' countdowns.
+- **Show Response Feedback** affects only the practice block. Recorded task blocks
+  never flash feedback, even when the box is ticked — feedback-evoked potentials
+  scale with error rate and would confound the WM-load contrast.
+- Rest screens show "Rest — relax, keep still" with a countdown; each task block is
+  preceded by its instruction + countdown; the session ends with an aggregate
+  signal-detection summary over the recorded task blocks (practice excluded).
+- **Custom Blocks** (inspector list): when non-empty it replaces the default plan —
+  compose any order of Rest / Practice / Task entries (with level and rest duration)
+  by hand.
+
+Markers: `session_start|tasks=<number of blocks>` fires once when Play starts (the
+plan is prepared), unlike the single-block scene where it fires when the countdown
+ends. Every block — rests included — is bracketed by `task_start`/`task_end`
+carrying its block index (see 5.2). Trial indices restart at 0 in every task block;
+segment by `task_start`/`task_end` exactly as for multi-block text sessions.
 
 ---
 
@@ -263,33 +311,68 @@ order matters.
 4. Put the headset on the participant and run **Varjo gaze calibration**: press **F9**
    (with the Unity/app window focused) or trigger calibration from Varjo Base. The
    participant follows the dots. **No gaze data is streamed until calibration succeeds.**
-5. Open **LabRecorder**. Click *Update* and verify **all** of these streams are listed and
-   ticked:
-   - `NBackMarkersLSL`
-   - `NBackEventCodesLSL`
-   - `VarjoEyeTrackingLSL`
-   - `NBackHeadPoseLSL`
-   - your OpenBCI EEG stream (the name from step 2)
-   - any optional CLAdVR-side streams you are also recording
-   If one is missing, see Troubleshooting (section 8) before continuing.
-6. Choose the XDF file name/location in LabRecorder (use your lab's naming scheme, e.g.
-   participant ID + condition + date).
-7. **Start recording in LabRecorder NOW — before the participant starts the task.** The
+5. Open **PhysioLabXR** and add the **CLAd** experiment preset (it contains
+   `VarjoEyeTrackingLSL`, both OpenBCI EEG streams, `CLAdEventMarkerLSL`,
+   `MachineStateLSL`, and `UNbackEventMarkerLSL`). Click **Start on every stream** —
+   streams that are not live yet (the CLAdVR-only ones during calibration) arm
+   themselves and start automatically the moment they appear. If a stream shows as
+   missing entirely, see Troubleshooting (section 8) before continuing.
+   *(LabRecorder alternative: tick `NBackMarkersLSL`, `UNbackEventMarkerLSL`,
+   `VarjoEyeTrackingLSL`, `NBackHeadPoseLSL`, and the EEG streams, then record to XDF.)*
+6. Set the recording metadata in PhysioLabXR's Recording tab (experiment `CLAd`,
+   subject = participant ID, session number).
+7. **Start the recording NOW — before the participant starts the task.** The
    `session_start` and first `task_start` markers must be inside the recording.
 8. Give the participant their instructions verbally; the on-screen Info text is shown in
    the headset as a reminder.
 9. The participant presses **Enter or the trigger** to advance past the Info screen; the
    fixation cross and then the task follow automatically.
-10. During the task: monitor LabRecorder (sample counts increasing) and, optionally,
-    PhysioLabXR for live signal quality.
+10. During the task: monitor the PhysioLabXR stream plots (samples flowing on every
+    stream, EEG signal quality visible on the preprocessed stream).
 11. The session **ends by itself after the last task** — the app emits a `session_end`
-    marker. Then **stop the recording in LabRecorder** and stop Unity Play mode.
+    marker. **If the CLAdVR training phase follows, do NOT stop the recording** —
+    continue with the switch procedure in 4b. Only stop when the whole session is over.
 12. Where the data is:
-    - **XDF file** — wherever you pointed LabRecorder in step 6. This is the primary data.
+    - **PhysioLabXR recording** (`.dats`, converted on stop to your configured format)
+      — in the configured recordings folder (default `~/Documents/Recordings`),
+      named `MM_DD_YYYY_HH_MM_SS-Exp_CLAd-Sbj_<id>-Ssn_<n>`. This is the primary data.
     - **JSONL backup of all task events** — written automatically to
-      `%USERPROFILE%\AppData\LocalLow\DefaultCompany\uNback\NBackSessions\Session_<yyyyMMdd_HHmmss>.jsonl`
+      `%USERPROFILE%\AppData\LocalLow\DefaultCompany\nbacktask\NBackSessions\Session_<yyyyMMdd_HHmmss>.jsonl`
+      (the folder name comes from the Unity product name, which is `nbacktask`)
       (one file per app start, one JSON object per line, flushed continuously). Keep it
       with the XDF; it is your fallback if LSL recording failed.
+
+---
+
+## 4b. Continuous calibrate-then-drill sessions (UNback → CLAdVR)
+
+The full study runs phases 3 and 4 in **one continuous recording with the headset
+kept on**, and with the **CLAd-EEG service running throughout**:
+
+1. Before the participant starts: launch the OpenBCI-to-LSL script (EEG streams run
+   independently of Unity and never stop), start PhysioLabXR with the CLAd preset
+   (all streams started/armed, recording running — section 4), and launch the
+   CLAd-EEG live service:
+   `python scripts/online_cognitive_lstm.py --participant <ID>` (CLAdEEG project).
+2. Run the UNback multi-block session (`VR-Tool-NBack-MultiBlock`, section 3c).
+   CLAd-EEG reads `UNbackEventMarkerLSL` and collects **labeled** calibration data:
+   rest blocks feed its baseline, task blocks feed the low/optimal/high training
+   pools; practice is ignored. UNback's `session_end` **freezes the model**.
+3. **Keep the headset on the participant.** Stop Unity Play mode in UNback and open
+   the CLAdVR project/build. The Varjo gaze stream and the marker streams reappear
+   under the same names — PhysioLabXR's armed widgets pick them up automatically;
+   glance at the stream plots to confirm data is flowing again. Do a quick EEG
+   signal check (electrodes can shift; the calibration is only as good as the
+   contact quality that outlives it).
+4. Run the drilling task. CLAd-EEG is now in **estimation mode**, publishing
+   `CLAdCognitiveLoadLSL` from the phase-3 calibration; it never refits during the
+   task, and no CLAdVR marker resets the calibration.
+5. When the drilling task ends: stop the PhysioLabXR recording, stop the CLAd-EEG
+   service, then take the headset and cap off.
+
+Two rules this protocol depends on: the EEG script and CLAd-EEG service are never
+restarted mid-session (the calibration lives in the service's memory), and the
+Unity switch happens between — never during — recorded blocks.
 
 ---
 
@@ -303,13 +386,16 @@ it.
 | Stream name | type | channels | nominal rate | format | source_id |
 |---|---|---|---|---|---|
 | `NBackMarkersLSL` | Markers | 1 | irregular (0) | string | `uNback-markers` |
-| `NBackEventCodesLSL` | Markers | 6 | irregular (0) | float32 | `uNback-eventcodes` |
-| `VarjoEyeTrackingLSL` | GazeData | 39 | 200 | double64 | `uNback-varjo-gaze` |
+| `UNbackEventMarkerLSL` | EventMarker | 9 | 75 (declared; events are sporadic) | float32 | (empty) |
+| `VarjoEyeTrackingLSL` | GazeData | 39 | 200 | double64 | (empty, like CLAdVR) |
 | `NBackHeadPoseLSL` | HeadPose | 9 | irregular (0) | double64 | `uNback-headpose` |
 
-`NBackMarkersLSL` and `NBackEventCodesLSL` describe the **same events**; each marker
-string and its numeric code sample are pushed with the **same LSL timestamp**. Use the
-string stream for readability and the code stream for purely numeric pipelines.
+`NBackMarkersLSL` and `UNbackEventMarkerLSL` describe the **same events**; each marker
+string and its numeric event sample are pushed with the **same LSL timestamp**. Use the
+string stream for readability (LabRecorder/debugging) and the numeric stream for
+PhysioLabXR and analysis pipelines — PhysioLabXR cannot record string streams, which
+is why the numeric stream follows the CLAd conventions (float32, positive declared
+rate, channel 0 = Unity time).
 
 ### 5.2 Marker string dictionary (`NBackMarkersLSL`)
 
@@ -324,6 +410,7 @@ newlines replaced before embedding.
 | `task_start\|index=<int>\|type=nback\|n=<int>\|trials=<int>\|stim_dur=<f3>\|isi=<f3>\|sequence=<e.g. SPDXF...>\|targets=<e.g. 00101...>` | An n-back block starts. Contains the **complete ground truth**: full letter sequence and 0/1 target vector. |
 | `task_start\|index=<int>\|type=info\|text=<...>` | Instruction screen shown. |
 | `task_start\|index=<int>\|type=focus\|duration=<f1>` | Fixation screen shown. |
+| `task_start\|index=<int>\|type=rest\|duration=<f1>` | A rest baseline begins (multi-block tool sessions, section 3c). Closed by a `task_end\|...\|type=rest`. |
 | `stim_on\|trial=<int>\|letter=<c>\|target=<0\|1>\|n=<int>` | A letter appears. |
 | `stim_off\|trial=<int>\|letter=<c>\|responded=<0\|1>` | The letter disappears (ISI begins). `responded` = whether a press already occurred during the stimulus. |
 | `response\|task_type=<nback\|info\|focus>\|trial=<int>\|letter=<c>\|target=<0\|1>\|class=<hit\|false_alarm\|na>\|rt_stim=<f3\|na>\|rt_trial=<f3\|na>\|phase=<stimulus\|isi\|na>\|press=<int>` | Every keypress/trigger pull. `rt_stim` = seconds since stimulus onset (when available); `rt_trial` additionally covers ISI presses when available. `press` = 1-based count of presses within the current trial. |
@@ -337,39 +424,54 @@ Notes:
 - **Trial indices are 0-based and restart at 0 in every n-back block.** In multi-block
   sessions, segment by `task_start` / `task_end` (using their `index=` field) before
   matching trials.
+- **Practice blocks** (multi-block tool sessions) append `|practice=1` to their n-back
+  `task_start` marker; regular blocks carry no `practice` field, so the historical
+  format is unchanged. Exclude `practice=1` blocks from calibration analysis.
 - `display_on`/`display_off` are emitted by an end-of-frame comparison of the actual UI
   text, independent of task logic — they are the ground truth of what was on screen.
 
-### 5.3 Numeric event codes (`NBackEventCodesLSL`, 6 channels, float32)
+### 5.3 Numeric event samples (`UNbackEventMarkerLSL`, 9 channels, float32)
 
-Channel layout (value `-1` on channels 1–5 means "not applicable"):
+Channel layout (`-1` means "not applicable" except on channels 0 and 5):
 
 | Ch | Content |
 |---|---|
-| 0 | event code (below) |
-| 1 | trial index (0-based; -1 if n/a) |
-| 2 | is target (1/0; -1 if n/a) |
-| 3 | outcome code (below; 0 = n/a) |
-| 4 | reaction time in **ms** (-1 if n/a) |
-| 5 | n of the n-back (-1 if n/a) |
+| 0 | **Unity time** (`realtimeSinceStartup`, s) — for LSL↔Unity clock-offset recovery, exactly like `CLAdEventMarkerLSL` channel 0 (offset = median(ch0 − LSL timestamps)) |
+| 1 | event code (below) |
+| 2 | block index (the `index=` of the surrounding `task_start`; -1 before the first block) |
+| 3 | trial index (0-based; -1 if n/a) |
+| 4 | is target (1/0; -1 if n/a) |
+| 5 | outcome code (below; 0 = n/a) |
+| 6 | reaction time in **ms** (-1 if n/a) |
+| 7 | n of the n-back (-1 if n/a) |
+| 8 | **block kind**: `0` rest baseline, `1` practice, `2` recorded task block, `-1` other |
 
-Event codes (channel 0):
+Channels 2 and 8 carry the block context of the most recent `task_start`, stamped on
+every event of that block — a purely numeric pipeline can segment and label
+calibration windows (rest / practice / low / optimal / high via channel 7) without
+parsing any strings. This is what drives CLAd-EEG's phase-3 calibration mode.
+
+Event codes (channel 1):
 
 | Code | Event | Channels also filled |
 |---|---|---|
 | 1 | session_start | — |
-| 2 | task_start | 5 (n, n-back only) |
-| 3 | stim_on | 1, 2, 5 |
-| 4 | stim_off | 1 |
-| 5 | response | 1, 2, 3 (hit/false alarm), 4 (rt_stim in ms, when available) |
-| 6 | trial_result | 1, 2, 3 |
-| 7 | task_end | 5 (n, n-back only) |
+| 2 | task_start | 2, 8 (block context), 7 (n, n-back only) |
+| 3 | stim_on | 2, 3, 4, 7, 8 |
+| 4 | stim_off | 2, 3, 8 |
+| 5 | response | 2, 3, 4, 5 (hit/false alarm), 6 (rt_stim in ms, when available), 8 |
+| 6 | trial_result | 2, 3, 4, 5, 8 |
+| 7 | task_end | 2, 8, 7 (n, n-back only) |
 | 8 | session_end | — |
 | 9 | display_on | — |
 | 10 | display_off | — |
 
-Outcome codes (channel 3): `0` n/a, `1` hit, `2` miss, `3` false_alarm,
+Outcome codes (channel 5): `0` n/a, `1` hit, `2` miss, `3` false_alarm,
 `4` correct_rejection.
+
+**Historical note:** this stream replaces the earlier 6-channel `NBackEventCodesLSL`
+(no data was ever collected against that contract). The event and outcome code
+dictionaries are unchanged.
 
 ### 5.4 `VarjoEyeTrackingLSL` (39 channels, double64, nominal 200 Hz)
 
@@ -476,7 +578,7 @@ outcomes = {int(e["trial"]): e["outcome"] for t, e in events
 
 For **multi-block** sessions, first split `events` at `task_start`/`task_end` markers
 (trial indices restart per block), then apply the same recipe per block. Reaction times
-come from the `response` markers (`rt_stim`), or from channel 4 of `NBackEventCodesLSL`.
+come from the `response` markers (`rt_stim`), or from channel 6 of `UNbackEventMarkerLSL`.
 
 **`display_on`/`display_off` vs `stim_on`/`stim_off`:** these fire on the same frame —
 `stim_on` is the semantic event from the task logic, `display_on` is measured from the

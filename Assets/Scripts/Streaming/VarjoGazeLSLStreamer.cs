@@ -33,7 +33,9 @@ namespace NBackStreaming
     {
         private const string StreamName = "VarjoEyeTrackingLSL";
         private const string StreamType = "GazeData";
-        private const string SourceId = "uNback-varjo-gaze";
+        // Empty like CLAdVR's outlet, so the stream identity is indistinguishable
+        // across the UNback -> CLAdVR app switch for any consumer.
+        private const string SourceId = "";
         private const int ChannelCount = 39;
         private const double NominalSamplingRate = 200.0;
 
@@ -42,12 +44,6 @@ namespace NBackStreaming
 
         /// <summary>Master switch for pushing gaze samples to LSL.</summary>
         public bool streamGazeData = true;
-
-        /// <summary>Requested gaze output frequency, applied in Start when gaze is allowed.</summary>
-        public VarjoEyeTracking.GazeOutputFrequency outputFrequency = VarjoEyeTracking.GazeOutputFrequency.MaximumSupported;
-
-        /// <summary>Requested gaze output filter, applied in Start when gaze is allowed.</summary>
-        public VarjoEyeTracking.GazeOutputFilterType filterType = VarjoEyeTracking.GazeOutputFilterType.Standard;
 
         /// <summary>Legacy Input Manager key that requests a gaze calibration (requires activeInputHandler = Both).</summary>
         public KeyCode calibrationKey = KeyCode.F9;
@@ -81,18 +77,10 @@ namespace NBackStreaming
             if (xrCamera == null)
                 xrCamera = Camera.main;
 
-            try
-            {
-                if (VarjoEyeTracking.IsGazeAllowed())
-                {
-                    VarjoEyeTracking.SetGazeOutputFrequency(outputFrequency);
-                    VarjoEyeTracking.SetGazeOutputFilterType(filterType);
-                }
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning("VarjoGazeLSLStreamer: could not apply gaze output settings: " + e.Message);
-            }
+            // Deliberately NO SetGazeOutputFrequency/SetGazeOutputFilterType here:
+            // CLAdVR leaves the Varjo Base configuration untouched, and forcing
+            // different settings during calibration would change gaze/pupil dynamics
+            // at the UNback -> CLAdVR switch (a confound for gaze-derived features).
         }
 
         private void Update()

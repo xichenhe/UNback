@@ -35,11 +35,19 @@ namespace ToolNBack
 
             foreach (Renderer toolRenderer in _renderers)
             {
-                foreach (Material material in toolRenderer.materials) // instantiates copies
+                // Copy explicitly instead of reading renderer.materials: the getter's
+                // auto-instantiation logs an error outside play mode (edit-mode tests).
+                Material[] shared = toolRenderer.sharedMaterials;
+                var copies = new Material[shared.Length];
+                for (int i = 0; i < shared.Length; i++)
                 {
-                    material.EnableKeyword("_EMISSION");
-                    material.globalIlluminationFlags &= ~MaterialGlobalIlluminationFlags.EmissiveIsBlack;
+                    if (shared[i] == null)
+                        continue;
+                    copies[i] = new Material(shared[i]);
+                    copies[i].EnableKeyword("_EMISSION");
+                    copies[i].globalIlluminationFlags &= ~MaterialGlobalIlluminationFlags.EmissiveIsBlack;
                 }
+                toolRenderer.sharedMaterials = copies;
             }
         }
 

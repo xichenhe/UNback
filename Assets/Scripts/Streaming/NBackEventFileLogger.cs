@@ -88,11 +88,14 @@ namespace NBackStreaming
                         AppendFloat(sb, "isi", d.InterStimulusDuration);
                         AppendString(sb, "sequence", d.Sequence);
                         AppendString(sb, "targets", d.Targets);
+                        if (d.Practice)
+                            AppendBool(sb, "practice", true);
                         break;
                     case TaskKind.Info:
                         AppendString(sb, "text", d.InfoText);
                         break;
                     case TaskKind.Focus:
+                    case TaskKind.Rest:
                         AppendFloat(sb, "duration", d.FocusDuration);
                         break;
                 }

@@ -230,6 +230,15 @@ head. Responses and all LSL markers/JSONL logging work exactly like the text tas
   the instruction text and in every stimulus marker (`letter=`).
 - Participant responds like in the text task: **controller trigger / primary button**,
   or **Enter/Space** on the keyboard.
+- **Run modes (XR loader, since 2026-08-29):** the project has two Standalone XR
+  loaders, tried in order. **Varjo (first) = recording mode**: full native eye
+  tracking (gaze + pupil for the LSL stream), but on the current lab
+  Varjo-Base/SteamVR combination the Index controller **buttons never arrive**
+  (poses only) — use the keyboard for responses. **OpenXR (fallback) = practice/
+  demo mode**: initializes when Varjo Base is closed (or the Varjo loader is
+  unticked in Project Settings > XR Plug-in Management); Index controller
+  buttons work via the Valve Index interaction profile, but the Varjo gaze/pupil
+  stream is unavailable — never record calibration sessions in this mode.
 - **Show Response Feedback** (ON by default in this scene since 2026-08-28, treating
   it as the practice/demo scene): flashes the visible tool with a green
   glow on a correct press and red on an incorrect press for ~0.4 s (colors, duration

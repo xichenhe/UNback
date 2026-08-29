@@ -78,6 +78,10 @@ public static class ToolNBackSceneBuilder
         var manager = root.AddComponent<ToolNBack.ToolNBackManagerBehaviour>();
         AssignCuratedTools(manager);
         SetSerializedFloat(manager, "_panelPivotHeightMeters", PanelAnchorPosition.y);
+        // Practice/demo default. Multi-block sessions suppress feedback in recorded
+        // task blocks in code regardless of this flag (EEG confound); anyone
+        // recording with THIS single-block scene must switch it off first.
+        SetSerializedBool(manager, "_showResponseFeedback", true);
         (inputHost != null ? inputHost : root).AddComponent<ToolNBack.ToolNBackResponseInput>();
         AddDesktopViewFallback();
 
@@ -152,6 +156,10 @@ public static class ToolNBackSceneBuilder
             SerializedProperty pivotHeight = serialized.FindProperty("_panelPivotHeightMeters");
             Check(pivotHeight != null && Mathf.Approximately(pivotHeight.floatValue, PanelAnchorPosition.y),
                 $"panel pivot height field set to {PanelAnchorPosition.y} m");
+
+            SerializedProperty feedback = serialized.FindProperty("_showResponseFeedback");
+            Check(feedback != null && feedback.boolValue,
+                "press feedback enabled for practice/demo runs (multi-block recorded blocks suppress it in code)");
         }
 
         Check(Object.FindFirstObjectByType<ToolNBack.DesktopViewFallback>(FindObjectsInactive.Include) != null,
@@ -191,6 +199,13 @@ public static class ToolNBackSceneBuilder
     {
         var serialized = new SerializedObject(target);
         serialized.FindProperty(propertyPath).floatValue = value;
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void SetSerializedBool(Object target, string propertyPath, bool value)
+    {
+        var serialized = new SerializedObject(target);
+        serialized.FindProperty(propertyPath).boolValue = value;
         serialized.ApplyModifiedPropertiesWithoutUndo();
     }
 

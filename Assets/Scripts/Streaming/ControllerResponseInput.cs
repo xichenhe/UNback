@@ -35,6 +35,10 @@ namespace NBackStreaming
                 _responseAction.AddBinding("<XRController>{RightHand}/triggerPressed");
                 _responseAction.AddBinding("<XRController>{LeftHand}/triggerPressed");
                 _responseAction.AddBinding("<XRController>/primaryButton");
+                // The native Varjo XR plugin names the primary face button control
+                // "primary" (no "primaryButton" control or alias on its Index/Vive
+                // layouts), so the OpenXR-style binding above never fires on Varjo.
+                _responseAction.AddBinding("<XRController>/primary");
                 _responseAction.performed += HandleActionPerformed;
             }
 

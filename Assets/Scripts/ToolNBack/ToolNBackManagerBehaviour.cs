@@ -88,6 +88,8 @@ namespace ToolNBack
 
         [Header("UI (created automatically when empty)")]
         [SerializeField] private Text _instructionText;
+        [Tooltip("Backdrop panel behind the instruction text — keeps the white text readable instead of floating bare over the scene.")]
+        [SerializeField] private Color _instructionBackdropColor = new Color(0f, 0f, 0f, 0.6f);
 
         /// <summary>The running core task; null before Start.</summary>
         public ToolNBackTask Task { get; private set; }
@@ -106,6 +108,7 @@ namespace ToolNBack
         private float _delayRemaining;
         private bool _running;
         private int _lastCountdownSecond = -1;
+        private GameObject _instructionBackdrop;
         private int _hits;
         private int _misses;
         private int _falseAlarms;
@@ -696,6 +699,21 @@ namespace ToolNBack
                 _panelAnchor.TransformPoint(local),
                 _panelAnchor.rotation * _layout.GetLocalRotation(0.5f, 0f) * Quaternion.Euler(0f, 180f, 0f));
 
+            // Created before the text: world-space UI draws in hierarchy order, so
+            // the backdrop must be the earlier sibling to render behind the text.
+            var backdropGo = new GameObject("Instruction Backdrop");
+            backdropGo.transform.SetParent(canvasGo.transform, false);
+            var backdrop = backdropGo.AddComponent<Image>();
+            backdrop.color = _instructionBackdropColor;
+            _instructionBackdrop = backdropGo;
+            backdropGo.SetActive(false); // shown by SetInstruction with the first text
+
+            var backdropRect = backdrop.rectTransform;
+            backdropRect.anchorMin = Vector2.zero;
+            backdropRect.anchorMax = Vector2.one;
+            backdropRect.offsetMin = Vector2.zero;
+            backdropRect.offsetMax = Vector2.zero;
+
             var textGo = new GameObject("Instruction Text");
             textGo.transform.SetParent(canvasGo.transform, false);
             _instructionText = textGo.AddComponent<Text>();
@@ -703,12 +721,15 @@ namespace ToolNBack
             _instructionText.fontSize = 48;
             _instructionText.alignment = TextAnchor.MiddleCenter;
             _instructionText.color = Color.white;
+            // Truncate (the legacy Text default) silently drops the bottom line —
+            // the "Starting in N..." countdown — once long tool names wrap.
+            _instructionText.verticalOverflow = VerticalWrapMode.Overflow;
 
             var textRect = _instructionText.rectTransform;
             textRect.anchorMin = Vector2.zero;
             textRect.anchorMax = Vector2.one;
-            textRect.offsetMin = Vector2.zero;
-            textRect.offsetMax = Vector2.zero;
+            textRect.offsetMin = new Vector2(30f, 30f);
+            textRect.offsetMax = new Vector2(-30f, -30f);
         }
 
         private void UpdateCountdownText()
@@ -741,6 +762,12 @@ namespace ToolNBack
         {
             if (_instructionText != null)
                 _instructionText.text = text;
+
+            // The backdrop must vanish with the text: trials run with a blanked
+            // instruction, and a floating dark panel would alter the participant's
+            // view (and retinal illuminance for the pupil channels) all block long.
+            if (_instructionBackdrop != null)
+                _instructionBackdrop.SetActive(!string.IsNullOrEmpty(text));
         }
         #endregion
 

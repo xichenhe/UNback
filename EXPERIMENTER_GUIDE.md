@@ -230,15 +230,18 @@ head. Responses and all LSL markers/JSONL logging work exactly like the text tas
   the instruction text and in every stimulus marker (`letter=`).
 - Participant responds like in the text task: **controller trigger / primary button**,
   or **Enter/Space** on the keyboard.
-- **Show Response Feedback** (off by default): flashes the visible tool with a green
+- **Show Response Feedback** (ON by default in this scene since 2026-08-28, treating
+  it as the practice/demo scene): flashes the visible tool with a green
   glow on a correct press and red on an incorrect press for ~0.4 s (colors, duration
   and glow intensity are inspector fields). The flash is a plain material tint on the
   tool itself — screen-space outline effects are deliberately avoided because they
-  mismatch the Varjo XR-3's multi-view stereo rendering and spam per-frame errors. **Use it for practice blocks only and keep
-  it OFF for recorded EEG blocks** — feedback flashes evoke their own EEG response,
-  and because error rates grow with N, that response would differ by condition and
-  confound the WM-load calibration. Note that only presses get feedback; a missed target
-  shows nothing.
+  mismatch the Varjo XR-3's multi-view stereo rendering and spam per-frame errors.
+  **If you record EEG with THIS single-block scene, untick the box first** — feedback
+  flashes evoke their own EEG response, and because error rates grow with N, that
+  response would differ by condition and confound the WM-load calibration. Recorded
+  sessions should use the multi-block scene (section 3c), which suppresses feedback in
+  recorded task blocks in code regardless of this checkbox. Note that only presses get
+  feedback; a missed target shows nothing.
 - On-screen instructions (with a countdown, default 5 s) are shown before the run and
   a summary at the end with the signal-detection breakdown: hits/targets, false
   alarms, misses, correct rejections, plus the raw correct count. Judge engagement by

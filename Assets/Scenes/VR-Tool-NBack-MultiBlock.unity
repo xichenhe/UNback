@@ -95046,7 +95046,7 @@ MonoBehaviour:
   - {fileID: 936213822840447267, guid: 80db2804e8ce9c944bb9a22e355507c6, type: 3}
   _toolDisplaySize: 0.22
   _toolSpinSpeed: 40
-  _showResponseFeedback: 0
+  _showResponseFeedback: 1
   _correctFeedbackColor: {r: 0.15, g: 0.9, b: 0.2, a: 1}
   _incorrectFeedbackColor: {r: 0.95, g: 0.15, b: 0.1, a: 1}
   _feedbackDuration: 0.4

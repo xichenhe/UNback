@@ -1,0 +1,16 @@
+{
+    "name": "CLAd.Recording",
+    "rootNamespace": "CLAd.Recording",
+    "references": [
+        "labstreaminglayer.LSL4Unity.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

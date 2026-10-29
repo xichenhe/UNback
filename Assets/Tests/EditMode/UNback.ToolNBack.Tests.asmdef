@@ -6,7 +6,9 @@
         "UnityEditor.TestRunner",
         "UNback.ToolNBack.Core",
         "UnityEngine.UI",
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "CLAd.Recording",
+        "labstreaminglayer.LSL4Unity.Runtime"
     ],
     "includePlatforms": [
         "Editor"

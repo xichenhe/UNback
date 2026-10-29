@@ -3,7 +3,9 @@
     "rootNamespace": "ToolNBack.PlayTests",
     "references": [
         "UnityEngine.TestRunner",
-        "UnityEditor.TestRunner"
+        "UnityEditor.TestRunner",
+        "CLAd.Recording",
+        "labstreaminglayer.LSL4Unity.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

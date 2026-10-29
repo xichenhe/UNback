@@ -426,7 +426,11 @@ kept on**, and with the **CLAd-EEG service running throughout**:
    step 1) — both run independently of Unity and never stop — start PhysioLabXR with
    the CLAd preset (all streams started/armed, recording running — section 4), and launch the
    CLAd-EEG live service:
-   `python scripts/online_cognitive_lstm.py --participant <ID>` (CLAdEEG project).
+   `python scripts/online_cognitive_lstm.py` (CLAdEEG project). First set the
+   participant ID at the bottom of that script (`main(participant="P01")`, same as
+   the PhysioLabXR subject) — a new ID for every participant, or the service starts
+   with the previous person's saved model. `--participant <ID>` on the command line
+   overrides it. At startup the console prints `Participant <ID>; model file ...`.
 2. Run the UNback multi-block session (`VR-Tool-NBack-MultiBlock`, section 3c).
    Once the participant has the hang of the practice, click **End Practice → Next
    Stage** in the Tool NBack inspector — practice does not end on its own. CLAd-EEG reads `UNbackEventMarkerLSL` and collects **labeled** calibration data:

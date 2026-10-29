@@ -11,7 +11,7 @@ checklist" for every participant; use the "Stream reference and marker dictionar
 
 The participant wears a **Varjo XR-3** headset and sees the text-based n-back task on a
 floating panel. They respond by pressing **Enter** on a keyboard or **pulling the trigger
-on a VR controller**. While the task runs, the Unity application publishes four
+on a VR controller**. While the task runs, the Unity application publishes five
 **Lab Streaming Layer (LSL)** streams:
 
 | What | Stream name |
@@ -20,8 +20,11 @@ on a VR controller**. While the task runs, the Unity application publishes four
 | The same events as numeric samples (9 channels, CLAd conventions) | `UNbackEventMarkerLSL` |
 | Varjo eye tracking (up to 200 Hz, 39 channels, identical to CLAdVR's) | `VarjoEyeTrackingLSL` |
 | Headset pose, once per rendered frame (9 channels) | `NBackHeadPoseLSL` |
+| Scene brightness over the view and at the gaze point (up to 30 Hz, 13 channels, identical to CLAdVR's) | `CLAdSceneLuminanceLSL` |
 
-Alongside these, the **OpenBCI-to-LSL script** (PhysioLabXR checkout,
+Alongside these, the **motion recorder** (CLAd_EEG project,
+`scripts/motion_lsl_recorder.py`) publishes headset and controller motion from SteamVR as
+`CLAdMotionLSL`, and the **OpenBCI-to-LSL script** (PhysioLabXR checkout,
 `physiolabxr/examples/OpenBCIExamples/OpenBCIToLSLInterface.py`) publishes the raw and
 preprocessed EEG as LSL streams, and **PhysioLabXR** (experiment preset **CLAd**)
 records everything into one time-synchronized recording — the same preset covers the
@@ -64,6 +67,8 @@ event to disk, so task data survives even if LSL recording fails.
 | **Varjo Base** | **>= 4.6**, from varjo.com | XR-3 driver/compositor, gaze calibration |
 | **VarjoUnityXRPlugin 3.7.3** | Installed automatically via the project's `Packages/manifest.json` (git URL) — no manual step | Unity <-> Varjo bridge |
 | **OpenBCI GUI** | openbci.com | EEG acquisition, publishes the EEG LSL stream |
+| **SteamVR** | Steam | Tracks the Index controllers; the motion recorder reads all poses from it |
+| **CLAd_EEG Python environment** | The environment that runs the CLAd-EEG service (e.g. the `clad_eeg` conda env), plus `pip install openvr` once | Runs the motion recorder (`pylsl` + `openvr`) |
 | **LabRecorder** | From the labstreaminglayer GitHub releases | Records all LSL streams to XDF |
 | **PhysioLabXR** (optional) | physiolabxr.org | Live visualization of the streams, or as an alternative recorder |
 
@@ -193,15 +198,16 @@ head. Responses and all LSL markers/JSONL logging work exactly like the text tas
 
   | Level | Task | Pace (stimulus / ISI) | Trials | Duration |
   |---|---|---|---|---|
-  | `Low` | 0-back — respond whenever the designated target tool appears | 1.5 s / 2.0 s | 40 | 140 s |
-  | `Optimal` | 2-back — respond when the tool matches the one 2 back | 1.5 s / 2.0 s | 40 | 140 s |
-  | `High` | 3-back — respond when the tool matches the one 3 back | 1.5 s / 2.0 s | 40 | 140 s |
+  | `Low` | 0-back — respond whenever the designated target tool appears | 1.5 s / 2.0 s | 13 | 45.5 s |
+  | `Optimal` | 2-back — respond when the tool matches the one 2 back | 1.5 s / 2.0 s | 13 | 45.5 s |
+  | `High` | 3-back — respond when the tool matches the one 3 back | 1.5 s / 2.0 s | 13 | 45.5 s |
 
   All three levels deliberately share identical timing and trial count, so **N — the
   WM load — is the only difference between conditions**: every block records the same
   duration (equal spectral epochs), stimulus/target event counts are near-equal
-  (12/11/11 targets), and the EEG contrast between levels cannot be confounded by
-  stimulus rate.
+  (4/3/3 targets per block), and the EEG contrast between levels cannot be confounded by
+  stimulus rate. Blocks are short on purpose: the multi-block session (3c) runs four
+  of them per level.
 
   Tick **Override Preset** to tune N, durations, trial count, target rate and tool
   pool size manually. **Random Seed** = 0 gives a fresh sequence each run; any other
@@ -270,15 +276,45 @@ tool scene with **Multi Block Session** ticked on the **Tool NBack** object.
 - **Default plan**: a long opening rest baseline (**Baseline Rest Duration**,
   default 90 s — it feeds CLAd-EEG's auto-baseline and the frozen EEG
   artifact-model fit) → practice (Optimal level, feedback allowed) → then
-  `Repetitions Per Level` x the three levels in the participant's counterbalanced
-  order, **each repetition rotated by one** (A-B-C then B-C-A) — average serial
-  positions stay near-balanced within the participant (the classifier is
+  `Repetitions Per Level` (4) x the three levels in the participant's counterbalanced
+  order, **each repetition rotated by one** (A-B-C, B-C-A, C-A-B, A-B-C) — average
+  serial positions stay near-balanced within the participant (the classifier is
   calibrated per person, so fatigue/drift must not correlate with level inside
   one session) and no level ever runs in two consecutive blocks.
-  A short washout rest follows every block (**Inter Block Rest Duration**,
-  default 20 s — long enough for tonic pupil and load state to settle; the final
-  washout doubles as the closing baseline). With 2 repetitions: 1 practice + 6
-  task blocks + 8 rests, roughly 21 minutes.
+  **Why four 45-s blocks instead of two 91-s blocks:** the task time per level is the
+  same, but with four blocks a classifier can be validated by holding out whole
+  blocks, so slow drift between blocks cannot pass for load.
+  After the practice stage and after every recorded block the participant gives an
+  **effort rating** (below), then a short washout rest follows (**Inter Block Rest
+  Duration**, default 15 s — with the few seconds of the rating the gap between
+  blocks stays about 20 s, long enough for tonic pupil and load state to settle; the
+  final washout doubles as the closing baseline). With 4 repetitions: 1 practice +
+  12 task blocks + 13 ratings + 14 rests, about 17 minutes with one practice round —
+  the inspector's plan preview shows the estimated length (ratings counted at about
+  6 s each) whenever you change repetitions or rest durations.
+- **Effort rating** (Effort Probe section of the inspector, on by default): a
+  single-item mental-effort rating, the Paas 9-point scale — "How much mental effort
+  did you invest in the task you just finished?", 1 = *very, very low mental effort*,
+  9 = *very, very high mental effort*. It appears in front of the participant right
+  after the block ends, while the block is fresh. **Use exactly the same question and
+  scale for the drilling task's effort probes in CLAdVR**, so both tasks share one
+  rating scale (question, anchors and number of points are inspector fields).
+  - **Participant controls:** push the thumbstick left/right — the first push lands
+    on 5, further pushes step by one — then press A or the trigger to confirm. A
+    press within 0.5 s of the scale appearing is ignored (it is a leftover n-back
+    response), and a press with no number chosen does nothing.
+  - **Keyboard:** left/right arrows (or A/D) and Enter/Space do the same. In
+    recording mode the Index buttons may not arrive (3b, Run modes): the scale's hint
+    line also invites the participant to **say the number** — type it with the digit
+    keys **1–9** (number row or numpad, Game view focused); a digit answers at once.
+  - **Timeout** (default 20 s, 0 = wait): an unanswered rating is skipped and logged
+    as missing (`rating=na`), and the session continues.
+  - If the stick does not move the selection in-headset, tick **Log Controller
+    Buttons** on the Tool NBack Response Input, push the stick, and add the logged
+    path to its **Extra Navigation Bindings**.
+  - Rating windows are not training data: they follow `task_end`, so CLAd-EEG leaves
+    them unlabeled. Untick **Effort Probe After Blocks** to run the session without
+    ratings.
 - **Counterbalance Index**: set it to the participant number. It selects one of the
   6 level orders (applied modulo 6) — write it down with the session.
 - **Random Seed**: same semantics as the single-block scene. A fixed non-zero seed
@@ -290,6 +326,13 @@ tool scene with **Multi Block Session** ticked on the **Tool NBack** object.
 - **Show Response Feedback** affects only the practice block. Recorded task blocks
   never flash feedback, even when the box is ticked — feedback-evoked potentials
   scale with error rate and would confound the WM-load contrast.
+- **Practice is experimenter-paced.** It repeats in rounds (13 trials each, a fresh
+  sequence and the countdown between rounds, shown as "PRACTICE (round N)") until
+  you end it: in Play mode select the **Tool NBack** object and click **End Practice
+  → Next Stage** at the top of its inspector. The session then continues with the
+  effort rating (it doubles as the participant's first go at the scale), the
+  washout rest and the recorded blocks. The button does nothing outside practice,
+  so a recorded block can never be cut short.
 - Rest screens show "Rest — relax, keep still" with a countdown; each task block is
   preceded by its instruction + countdown; the session ends with an aggregate
   signal-detection summary over the recorded task blocks (practice excluded).
@@ -311,7 +354,12 @@ Do these **in order**. Streams only exist while the Unity app is in Play mode, s
 order matters.
 
 1. **Power on the Varjo XR-3** and start **Varjo Base**. Wait until Varjo Base shows
-   green/OK status for the headset (tracking + display).
+   green/OK status for the headset (tracking + display). Make sure **SteamVR** is running
+   too (it tracks the Index controllers), then start the **motion recorder** from the
+   CLAd_EEG project, in the same Python environment as the CLAd-EEG service (2.1):
+   `python scripts/motion_lsl_recorder.py`. It publishes headset and controller poses as
+   `CLAdMotionLSL` and waits for SteamVR by itself; leave its window open until the
+   session ends.
 2. **Fit the EEG cap**, connect the OpenBCI board, and open the **OpenBCI GUI**. Start the
    data stream, then start its **LSL output** (Networking widget → protocol LSL → Start).
    **Name the stream and write the name down** — you will need it to find the EEG in
@@ -319,18 +367,23 @@ order matters.
    project).
 3. **Launch the task**: open the project in Unity and press **Play** with the
    `VR-N-Back` scene open (or start the standalone build if you made one). The four
-   `NBack*`/`Varjo*` LSL streams are created at startup.
+   `NBack*`/`Varjo*` LSL streams and `CLAdSceneLuminanceLSL` (scene brightness, 5.7) are
+   created at startup.
 4. Put the headset on the participant and run **Varjo gaze calibration**: press **F9**
    (with the Unity/app window focused) or trigger calibration from Varjo Base. The
    participant follows the dots. **No gaze data is streamed until calibration succeeds.**
 5. Open **PhysioLabXR** and add the **CLAd** experiment preset (it contains
    `VarjoEyeTrackingLSL`, both OpenBCI EEG streams, `CLAdEventMarkerLSL`,
-   `MachineStateLSL`, and `UNbackEventMarkerLSL`). Click **Start on every stream** —
+   `MachineStateLSL`, `UNbackEventMarkerLSL`, `CLAdMotionLSL`,
+   `CLAdSceneLuminanceLSL`, and the CLAd-EEG service's two outputs: `CLAdCognitiveLoadLSL`,
+   its live estimate, and `CLAdLoadStateLSL`, the load state the CLAdVR Instructor reads).
+   Click **Start on every stream** —
    streams that are not live yet (the CLAdVR-only ones during calibration) arm
    themselves and start automatically the moment they appear. If a stream shows as
    missing entirely, see Troubleshooting (section 8) before continuing.
    *(LabRecorder alternative: tick `NBackMarkersLSL`, `UNbackEventMarkerLSL`,
-   `VarjoEyeTrackingLSL`, `NBackHeadPoseLSL`, and the EEG streams, then record to XDF.)*
+   `VarjoEyeTrackingLSL`, `NBackHeadPoseLSL`, `CLAdSceneLuminanceLSL`, `CLAdMotionLSL`,
+   and the EEG streams, then record to XDF.)*
 6. Set the recording metadata in PhysioLabXR's Recording tab (experiment `CLAd`,
    subject = participant ID, session number).
 7. **Start the recording NOW — before the participant starts the task.** The
@@ -340,7 +393,14 @@ order matters.
 9. The participant presses **Enter or the trigger** to advance past the Info screen; the
    fixation cross and then the task follow automatically.
 10. During the task: monitor the PhysioLabXR stream plots (samples flowing on every
-    stream, EEG signal quality visible on the preprocessed stream).
+    stream, EEG signal quality visible on the preprocessed stream). Before the first
+    block, check the two pilot streams once: wave each controller and watch its
+    `tracked` flag and velocity move in `CLAdMotionLSL`; in `CLAdSceneLuminanceLSL`,
+    `gaze_valid` should stay at 1 while the participant looks around. Then have them
+    keep the head still and look up at something bright and down at something dark:
+    `gaze_v` must go above and then below 0.5, and `gaze_luminance` must follow the
+    gaze (bright up, dark down) more than `view_luminance` does. If it follows the
+    opposite way, stop and report it — the brightness data would be mirrored.
 11. The session **ends by itself after the last task** — the app emits a `session_end`
     marker. **If the CLAdVR training phase follows, do NOT stop the recording** —
     continue with the switch procedure in 4b. Only stop when the whole session is over.
@@ -361,30 +421,45 @@ order matters.
 The full study runs phases 3 and 4 in **one continuous recording with the headset
 kept on**, and with the **CLAd-EEG service running throughout**:
 
-1. Before the participant starts: launch the OpenBCI-to-LSL script (EEG streams run
-   independently of Unity and never stop), start PhysioLabXR with the CLAd preset
-   (all streams started/armed, recording running — section 4), and launch the
+1. Before the participant starts: launch the OpenBCI-to-LSL script and the motion
+   recorder (`python scripts/motion_lsl_recorder.py`, CLAd_EEG project; section 4
+   step 1) — both run independently of Unity and never stop — start PhysioLabXR with
+   the CLAd preset (all streams started/armed, recording running — section 4), and launch the
    CLAd-EEG live service:
    `python scripts/online_cognitive_lstm.py --participant <ID>` (CLAdEEG project).
 2. Run the UNback multi-block session (`VR-Tool-NBack-MultiBlock`, section 3c).
-   CLAd-EEG reads `UNbackEventMarkerLSL` and collects **labeled** calibration data:
+   Once the participant has the hang of the practice, click **End Practice → Next
+   Stage** in the Tool NBack inspector — practice does not end on its own. CLAd-EEG reads `UNbackEventMarkerLSL` and collects **labeled** calibration data:
    rest blocks feed its baseline, task blocks feed the low/optimal/high training
    pools; practice is ignored. UNback's `session_end` **freezes the model**.
 3. **Keep the headset on the participant.** Stop Unity Play mode in UNback and open
-   the CLAdVR project/build. The Varjo gaze stream and the marker streams reappear
-   under the same names — PhysioLabXR's armed widgets pick them up automatically;
-   glance at the stream plots to confirm data is flowing again. Do a quick EEG
+   the CLAdVR project/build. The Varjo gaze stream, the marker streams and
+   `CLAdSceneLuminanceLSL` reappear under the same names (`CLAdMotionLSL` never stops;
+   check that both controllers still show `tracked` = 1 in it before drilling)
+   — PhysioLabXR's armed widgets pick them up automatically;
+   glance at the stream plots to confirm data is flowing again. CLAd-EEG follows
+   on its own: its console logs `... was lost` when UNback stops, then
+   `Attached pupil stream` / `Attached event stream` once CLAdVR is playing. Do a quick EEG
    signal check (electrodes can shift; the calibration is only as good as the
    contact quality that outlives it).
 4. Run the drilling task. CLAd-EEG is now in **estimation mode**, publishing
    `CLAdCognitiveLoadLSL` from the phase-3 calibration; it never refits during the
    task, and no CLAdVR marker resets the calibration.
 5. When the drilling task ends: stop the PhysioLabXR recording, stop the CLAd-EEG
-   service, then take the headset and cap off.
+   service and the motion recorder (Ctrl+C in each window), then take the headset and
+   cap off.
 
 Two rules this protocol depends on: the EEG script and CLAd-EEG service are never
 restarted mid-session (the calibration lives in the service's memory), and the
 Unity switch happens between — never during — recorded blocks.
+
+**Pilot sessions** run this exact protocol, in this exact order: UNback, then the
+60-s rest in CLAdVR's drill scene, then drilling. The pilot's job is to test whether
+the n-back calibration carries over to drilling across the real gap (the model is
+frozen about a minute before drilling starts; by the end of drilling its
+calibration data is up to about 40 minutes old), so do not shorten, reorder or
+pause between the phases. The drilling task's effort probes must use the same
+question and 1–9 scale as UNback's ratings (3c), so both tasks share one scale.
 
 ---
 
@@ -393,7 +468,7 @@ Unity switch happens between — never during — recorded blocks.
 Everything in this section is exact and stable — analysis code should be written against
 it.
 
-### 5.1 The four Unity streams
+### 5.1 The Unity streams
 
 | Stream name | type | channels | nominal rate | format | source_id |
 |---|---|---|---|---|---|
@@ -401,6 +476,16 @@ it.
 | `UNbackEventMarkerLSL` | EventMarker | 9 | 75 (declared; events are sporadic) | float32 | (empty) |
 | `VarjoEyeTrackingLSL` | GazeData | 39 | 200 | double64 | (empty, like CLAdVR) |
 | `NBackHeadPoseLSL` | HeadPose | 9 | irregular (0) | double64 | `uNback-headpose` |
+| `CLAdSceneLuminanceLSL` | Luminance | 13 | 30 | float32 | (empty; CLAdVR publishes the same stream) |
+
+`CLAdMotionLSL` (5.8) is not a Unity stream: the CLAd_EEG motion recorder publishes it
+from SteamVR for the whole session. Nor is `CLAdCognitiveLoadLSL`, the CLAd-EEG service's
+live estimate: 9 float32 channels (`COGNITIVE_LOAD_OUTPUT_LABELS` in the CLAd_EEG
+project's `scripts/config.py`), one sample per 1-s step. The stream declares an irregular
+rate; the PhysioLabXR preset records it at 1 Hz. Beside it the service publishes
+`CLAdLoadStateLSL` (13 float32 channels, 1 Hz), the CLAdVR Instructor's input: the held
+underload/optimal/overload state plus the flags that say when it may be used. Its channels
+and rules are in the CLAd_EEG project's `docs/clad-load-state-lsl.md`.
 
 `NBackMarkersLSL` and `UNbackEventMarkerLSL` describe the **same events**; each marker
 string and its numeric event sample are pushed with the **same LSL timestamp**. Use the
@@ -428,6 +513,8 @@ newlines replaced before embedding.
 | `response\|task_type=<nback\|info\|focus>\|trial=<int>\|letter=<c>\|target=<0\|1>\|class=<hit\|false_alarm\|na>\|rt_stim=<f3\|na>\|rt_trial=<f3\|na>\|phase=<stimulus\|isi\|na>\|press=<int>` | Every keypress/trigger pull. `rt_stim` = seconds since stimulus onset (when available); `rt_trial` additionally covers ISI presses when available. `press` = 1-based count of presses within the current trial. |
 | `trial_result\|trial=<int>\|letter=<c>\|target=<0\|1>\|responded=<0\|1>\|outcome=<hit\|miss\|false_alarm\|correct_rejection>` | Trial scored at the end of its response window. **One per trial, including the final trial** — this is the complete per-trial scoring record. |
 | `task_end\|index=<int>\|type=<...>\|n=<int>\|correct=<int>\|error_rate=<f3>` | Task finished. `correct`/`error_rate` keep the historical semantics (see 7). |
+| `effort_probe\|index=<int>\|n=<int>\|scale=<min>-<max>` (+ `\|practice=1`) | The effort rating appeared after block `index` (multi-block tool sessions, 3c). |
+| `effort_rating\|index=<int>\|n=<int>\|rating=<int\|na>\|rt=<f3\|na>\|scale=<min>-<max>\|timeout=<0\|1>` (+ `\|practice=1`) | The rating closed. `rating` = the chosen number; `rt` = seconds from the scale appearing to the answer; `rating=na`, `rt=na`, `timeout=1` when no answer came before the timeout. |
 | `session_end\|unity_time=<f3>` | Last task finished. |
 | `display_on\|text=<...>` | Display-truth: the on-screen text changed to a non-empty value (fires for letters, instructions, fixation cross alike). |
 | `display_off\|prev=<...>` | Display-truth: the screen went blank; `prev` is the text that was removed. |
@@ -439,8 +526,14 @@ Notes:
 - **Practice blocks** (multi-block tool sessions) append `|practice=1` to their n-back
   `task_start` marker; regular blocks carry no `practice` field, so the historical
   format is unchanged. Exclude `practice=1` blocks from calibration analysis.
+  Practice can span several rounds: each round is its own `task_start`/`task_end`
+  pair with the same `index=`. When the experimenter ends practice mid-round, the
+  open trial still gets its `stim_off` and the round its `task_end` before the rest.
 - `display_on`/`display_off` are emitted by an end-of-frame comparison of the actual UI
   text, independent of task logic — they are the ground truth of what was on screen.
+- **Effort ratings** sit between a block's `task_end` and the next rest's
+  `task_start`; their `index=` is the rated block. The practice stage gets one
+  rating (`practice=1`) after the experimenter ends it.
 
 ### 5.3 Numeric event samples (`UNbackEventMarkerLSL`, 9 channels, float32)
 
@@ -477,9 +570,12 @@ Event codes (channel 1):
 | 8 | session_end | — |
 | 9 | display_on | — |
 | 10 | display_off | — |
+| 11 | effort_probe | 2, 7, 8 (the rated block) |
+| 12 | effort_rating | 2, 7, 8 (the rated block), **5 = the rating** (0 = none, timed out), 6 (response time in ms, -1 = none) |
 
 Outcome codes (channel 5): `0` n/a, `1` hit, `2` miss, `3` false_alarm,
-`4` correct_rejection.
+`4` correct_rejection. On `effort_rating` (code 12) channel 5 carries the rating
+instead, so read it by event code.
 
 **Historical note:** this stream replaces the earlier 6-channel `NBackEventCodesLSL`
 (no data was ever collected against that contract). The event and outcome code
@@ -537,6 +633,59 @@ One JSON object per line, e.g.
 `{"event":"stim_on","iso":"<ISO-8601 local>","unity_time":<sec>,"lsl_time":<LSL clock or null>,"marker":"<the marker string>", ...event fields...}`.
 The `lsl_time` field lets you re-align the backup with the XDF if needed. First line is a
 `log_opened` header.
+
+### 5.7 `CLAdSceneLuminanceLSL` (13 channels, float32, nominal 30 Hz)
+
+Scene brightness for correcting pupil size later. Published by the shared
+`Assets/Scripts/Streaming/CLAdRecording/` folder (the same files sit in CLAdVR, so the
+stream continues through drilling). A hidden 128 × 128 copy of the main camera renders up
+to 30 times a second (90° vertical field of view while the headset is active) and is read
+back without blocking a frame. A capture takes at least three rendered frames, so the real
+rate depends on the frame rate and the GPU's readback delay (30 Hz at best at 90 fps):
+use the timestamps, not the nominal rate. Gaze comes from this app's own
+`VarjoEyeTrackingLSL` through an LSL inlet, never through a Varjo API, so the pupil stream
+loses no samples; a `VarjoEyeTrackingLSL` published from another machine is ignored.
+
+| Ch | Content |
+|---|---|
+| 0 | Unity time (`realtimeSinceStartup`) of the captured frame |
+| 1 | `view_luminance`: mean luminance of the whole view, 0–1 |
+| 2 | `gaze_luminance`: mean luminance of a 2° disc around the gaze point, 0–1; -1 when gaze is invalid or off the view |
+| 3 | `gaze_valid`: 1 when `VarjoEyeTrackingLSL` gave a valid combined gaze no older than 0.1 s, else 0 |
+| 4–5 | `gaze_u`, `gaze_v`: gaze point in the captured view, 0–1 (u right, v up); -1 when invalid or off the view |
+| 6–8 | camera position x, y, z (Unity world, metres) |
+| 9–12 | camera rotation quaternion x, y, z, w (Unity world) |
+
+Values are relative screen brightness (Rec. 709 luminance of the sRGB-decoded image), not
+cd/m². The LSL timestamp is the moment the captured frame was rendered. Channel 0 is
+float32, as in `UNbackEventMarkerLSL`: in Editor Play mode `realtimeSinceStartup` counts
+from the Editor's launch, so its resolution coarsens with Editor uptime (about 8 ms after a
+day). Restart the Editor before a session day; LSL timestamps are unaffected.
+
+### 5.8 `CLAdMotionLSL` (42 channels, float32, nominal 90 Hz)
+
+Headset and controller motion for down-weighting EEG during fast movement. Published by
+`scripts/motion_lsl_recorder.py` in the CLAd_EEG project, which reads SteamVR as a
+background application (it never launches SteamVR) and runs for the whole session.
+
+Three blocks of 14 channels, in the order `head`, `left`, `right` (channel names
+`<device>_<field>`):
+
+| Offset | Field | Unit |
+|---|---|---|
+| 0 | `tracked`: 1 when the device is connected and its pose valid; otherwise this block is all zeros | — |
+| 1–3 | `pos_x`, `pos_y`, `pos_z` | m |
+| 4–7 | `rot_x`, `rot_y`, `rot_z`, `rot_w` (quaternion) | — |
+| 8–10 | `vel_x`, `vel_y`, `vel_z` (linear velocity) | m/s |
+| 11–13 | `angvel_x`, `angvel_y`, `angvel_z` (angular velocity) | rad/s |
+
+All values are exactly as SteamVR reports them in its standing universe (right-handed:
++x right, +y up, −z forward) — not Unity's left-handed frame. OpenVR does not document the
+frame of the angular velocity for certain, so use its magnitude (or check its frame once
+against the rotation channels) before relying on its axes. Controllers are found by
+hand role on every sample, so a controller that is switched off shows `tracked` = 0 at
+once. There is no time channel: the LSL timestamp is the moment the poses were read.
+While SteamVR is not running the stream is silent and the recorder retries every 3 s.
 
 ---
 
@@ -630,6 +779,9 @@ light hitting the eye by roughly one frame of rendering plus the HMD's display l
 | Black screen / no image in the HMD | Varjo loader not enabled → run **NBack VR > Enable Varjo XR Loader** (or tick Varjo in *Project Settings > XR Plug-in Management*). If OpenXR is also installed/checked it can grab the XR session → untick everything except Varjo. If someone added URP → remove it; the project must stay on the Built-in Render Pipeline. |
 | Task canvas not visible in the headset | Rig or canvas moved. The rig belongs at the origin and the canvas at `(0, 1.6, 1.5)` → run **NBack VR > Build or Repair VR-N-Back Scene** to restore. |
 | No gaze data in `VarjoEyeTrackingLSL` | Gaze not calibrated (streaming is gated on successful calibration) → press **F9** with the app focused, or calibrate from Varjo Base, then check again. |
+| `CLAdMotionLSL` shows no data | SteamVR isn't running (the recorder's window says it is retrying) → start SteamVR; the recorder connects by itself. If the window is gone, start `python scripts/motion_lsl_recorder.py` again (CLAd_EEG project). |
+| `CLAdMotionLSL` head block stays at `tracked` = 0 while the controllers work | SteamVR doesn't report the Varjo headset to background apps → nothing to fix during a session: head pose is still recorded in `CLAdSceneLuminanceLSL` (channels 6–12) and `NBackHeadPoseLSL`. |
+| `gaze_valid` stays 0 in `CLAdSceneLuminanceLSL` | No gaze calibration yet, or `VarjoEyeTrackingLSL` isn't up on this PC → calibrate (F9) and check the gaze stream; brightness channels 0–1 and 6–12 keep recording meanwhile. Only this PC's gaze stream counts: the Unity Console says once if it ignored one from another machine. |
 | No LSL streams visible in LabRecorder | Unity not in Play mode; or `lsl.dll` missing (package didn't resolve — check the Console/`Editor.log` for `DllNotFoundException`); or Windows Firewall blocking Unity/LabRecorder → allow both on private networks. Task events are still saved to the JSONL backup even when LSL is down. |
 | Enter key does nothing | `Active Input Handling` was reset → it must be **Both** (`activeInputHandler: 2` in `ProjectSettings/ProjectSettings.asset`). Run **NBack VR > Validate Setup** to confirm. |
 | Varjo rendering misbehaves on Unity 6 (persistent glitches after the above) | Fallback plan: open the project with **Unity 2022.3.44f1** (installed on the lab PC; the same stack CLAdVR uses). Package versions are pinned, so the project opens there as well. |

@@ -54,6 +54,8 @@ namespace NBackStreaming
             NBackEvents.TaskFinished += HandleTaskFinished;
             NBackEvents.SessionEnded += HandleSessionEnded;
             NBackEvents.DisplayChanged += HandleDisplayChanged;
+            NBackEvents.EffortProbeStarted += HandleEffortProbeStarted;
+            NBackEvents.EffortRated += HandleEffortRated;
 
             CreateOutlets();
         }
@@ -95,6 +97,8 @@ namespace NBackStreaming
             NBackEvents.TaskFinished -= HandleTaskFinished;
             NBackEvents.SessionEnded -= HandleSessionEnded;
             NBackEvents.DisplayChanged -= HandleDisplayChanged;
+            NBackEvents.EffortProbeStarted -= HandleEffortProbeStarted;
+            NBackEvents.EffortRated -= HandleEffortRated;
 
             DisposeOutlets();
         }
@@ -135,6 +139,12 @@ namespace NBackStreaming
 
         private void HandleDisplayChanged(DisplayChangedData d) =>
             Push(NBackMarkerFormat.Marker(d), NBackMarkerFormat.Event(d, Now(), _blockContext));
+
+        private void HandleEffortProbeStarted(EffortProbeStartedData d) =>
+            Push(NBackMarkerFormat.Marker(d), NBackMarkerFormat.Event(d, Now()));
+
+        private void HandleEffortRated(EffortRatedData d) =>
+            Push(NBackMarkerFormat.Marker(d), NBackMarkerFormat.Event(d, Now()));
         #endregion
 
         #region Private methods

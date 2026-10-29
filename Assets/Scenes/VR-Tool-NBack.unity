@@ -95051,7 +95051,15 @@ MonoBehaviour:
   _incorrectFeedbackColor: {r: 0.95, g: 0.15, b: 0.1, a: 1}
   _feedbackDuration: 0.4
   _feedbackGlowIntensity: 0.6
+  _multiBlockSession: 0
+  _counterbalanceIndex: 0
+  _repetitionsPerLevel: 2
+  _baselineRestDuration: 90
+  _interBlockRestDuration: 20
+  _includePracticeBlock: 1
+  _customBlocks: []
   _instructionText: {fileID: 0}
+  _instructionBackdropColor: {r: 0, g: 0, b: 0, a: 0.6}
 --- !u!4 &1330254857
 Transform:
   m_ObjectHideFlags: 0
@@ -116079,8 +116087,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::NBackStreaming.VarjoGazeLSLStreamer
   xrCamera: {fileID: 883727538}
   streamGazeData: 1
-  outputFrequency: 0
-  filterType: 1
   calibrationKey: 290
   calibrationMode: 0
 --- !u!114 &1610984699
@@ -116138,6 +116144,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ToolNBack.ToolNBackResponseInput
   taskManager: {fileID: 0}
+  _extraBindings: []
+  _logControllerButtons: 0
 --- !u!1001 &1611518480
 PrefabInstance:
   m_ObjectHideFlags: 0

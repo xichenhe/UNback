@@ -37,6 +37,52 @@ namespace ToolNBack.Tests
         }
 
         [Test]
+        public void EstimatedDuration_AddsRests_Countdowns_AndEachBlocksTrialTime()
+        {
+            var plan = new List<SessionBlock>
+            {
+                new SessionBlock { Kind = SessionBlockKind.Rest, RestDuration = 10f },
+                new SessionBlock { Kind = SessionBlockKind.Practice, Level = WMLoadLevel.Low },
+                new SessionBlock { Kind = SessionBlockKind.Task, Level = WMLoadLevel.High },
+            };
+            ToolNBackSettings SettingsFor(WMLoadLevel level) => new ToolNBackSettings
+            {
+                SequenceLength = level == WMLoadLevel.Low ? 4 : 2,
+                StimulusDuration = 1f,
+                InterStimulusDuration = 0.5f
+            };
+
+            float seconds = SessionPlanner.EstimateDurationSeconds(plan, startDelay: 2f, SettingsFor);
+
+            // 10 rest + (2 countdown + 4 x 1.5) practice + (2 countdown + 2 x 1.5) task
+            Assert.AreEqual(23f, seconds, 1e-4f);
+        }
+
+        [Test]
+        public void EstimatedDuration_AddsTheEffortProbe_AfterPracticeAndEveryTaskBlock()
+        {
+            var plan = new List<SessionBlock>
+            {
+                new SessionBlock { Kind = SessionBlockKind.Rest, RestDuration = 10f },
+                new SessionBlock { Kind = SessionBlockKind.Practice, Level = WMLoadLevel.Low },
+                new SessionBlock { Kind = SessionBlockKind.Rest, RestDuration = 10f },
+                new SessionBlock { Kind = SessionBlockKind.Task, Level = WMLoadLevel.High },
+            };
+            ToolNBackSettings SettingsFor(WMLoadLevel level) => new ToolNBackSettings
+            {
+                SequenceLength = 2,
+                StimulusDuration = 1f,
+                InterStimulusDuration = 0.5f
+            };
+
+            float seconds = SessionPlanner.EstimateDurationSeconds(plan, startDelay: 0f, SettingsFor,
+                probeSeconds: 6f);
+
+            // 20 rest + 2 blocks x (2 x 1.5) + one rating after each of the 2 blocks, none after rests
+            Assert.AreEqual(38f, seconds, 1e-4f);
+        }
+
+        [Test]
         public void DefaultPlan_StartsWithARestBaseline_AndFollowsEveryNonRestBlockWithRest()
         {
             List<SessionBlock> plan = SessionPlanner.DefaultPlan(

@@ -75,16 +75,30 @@ namespace ToolNBack
         [SerializeField] private bool _multiBlockSession;
         [Tooltip("Which of the 6 counterbalanced level orders to use (e.g. the participant number; applied modulo 6).")]
         [SerializeField] private int _counterbalanceIndex;
-        [Tooltip("How many recorded task blocks per WM load level.")]
-        [SerializeField, Min(1)] private int _repetitionsPerLevel = 2;
+        [Tooltip("How many recorded task blocks per WM load level. Four ~45 s blocks give the same task time as two 91 s blocks, but enough blocks to validate a classifier by holding whole blocks out.")]
+        [SerializeField, Min(1)] private int _repetitionsPerLevel = 4;
         [Tooltip("Opening rest baseline in seconds. Long on purpose: it feeds CLAd-EEG's auto-baseline (needs >= 30 s of valid windows) and the frozen EEG artifact-model fit (90 s window).")]
         [SerializeField, Min(30f)] private float _baselineRestDuration = 90f;
-        [Tooltip("Washout rest between blocks in seconds — just enough for pupil and load state to settle; also contributes baseline-labeled windows. The final washout doubles as the closing baseline.")]
-        [SerializeField, Min(5f)] private float _interBlockRestDuration = 20f;
+        [Tooltip("Washout rest after each block (and its effort rating) in seconds — with the rating the gap stays about 20 s, enough for pupil and load state to settle; also contributes baseline-labeled windows. The final washout doubles as the closing baseline.")]
+        [SerializeField, Min(5f)] private float _interBlockRestDuration = 15f;
         [Tooltip("Insert one practice block (Optimal level, feedback allowed, marked practice=1 in the markers) after the opening rest.")]
         [SerializeField] private bool _includePracticeBlock = true;
         [Tooltip("When non-empty, replaces the generated default plan.")]
         [SerializeField] private List<SessionBlock> _customBlocks = new List<SessionBlock>();
+
+        [Header("Effort Probe (multi-block sessions)")]
+        [Tooltip("After the practice stage and after every recorded task block, ask a single-item mental-effort rating before the washout rest. Use the same question and scale as the drilling task's effort probes, so both tasks share one scale.")]
+        [SerializeField] private bool _effortProbeAfterBlocks = true;
+        [Tooltip("Question shown above the scale (the Paas mental-effort item).")]
+        [SerializeField] private string _effortProbeQuestion = "How much mental effort did you invest in the task you just finished?";
+        [Tooltip("Label under the lowest number.")]
+        [SerializeField] private string _effortProbeLowLabel = "very, very low mental effort";
+        [Tooltip("Label under the highest number.")]
+        [SerializeField] private string _effortProbeHighLabel = "very, very high mental effort";
+        [Tooltip("Points on the scale, numbered from 1 (9 = the Paas scale). At most 9, so the digit keys can enter every number.")]
+        [SerializeField, Range(3, 9)] private int _effortProbeScalePoints = 9;
+        [Tooltip("Seconds before an unanswered rating is skipped and logged as missing; 0 waits for the answer.")]
+        [SerializeField, Min(0f)] private float _effortProbeTimeout = 20f;
 
         [Header("UI (created automatically when empty)")]
         [SerializeField] private Text _instructionText;
@@ -97,6 +111,20 @@ namespace ToolNBack
         public ToolNBackSettings Settings => _settings;
         /// <summary>Names of the pooled tools; the stimulus markers use these.</summary>
         public string[] ToolNames => _toolNames;
+
+        /// <summary>True while a multi-block session is in its practice stage (countdown or trials).</summary>
+        public bool IsPracticing =>
+            _multiBlockSession && _plan != null && !_sessionFinished && !_inRest && !_inProbe
+            && _currentBlock.Kind == SessionBlockKind.Practice;
+
+        /// <summary>1-based number of the current practice round (meaningful while <see cref="IsPracticing"/>).</summary>
+        public int PracticeRound => _practiceRound + 1;
+
+        /// <summary>True while the effort rating is on screen.</summary>
+        public bool IsAskingEffort => _inProbe;
+
+        /// <summary>The last effort rating; null when it timed out unanswered (or none ran yet).</summary>
+        public int? LastEffortRating { get; private set; }
 
         private ToolNBackSettings _settings;
         private CurvedPanelLayout _layout;
@@ -126,6 +154,10 @@ namespace ToolNBack
         private float _restRemaining;
         private bool _sessionFinished;
         private int _completedNonRestBlocks;
+        private int _practiceRound;
+        private bool _inProbe;
+        private EffortProbe _probe;
+        private EffortProbePanel _probePanel;
         private int _sessionHits;
         private int _sessionMisses;
         private int _sessionFalseAlarms;
@@ -185,6 +217,8 @@ namespace ToolNBack
                 PrepareFeedbackTints();
 
             EnsureInstructionText();
+            if (_multiBlockSession && _effortProbeAfterBlocks)
+                CreateProbePanel();
 
             if (_multiBlockSession)
             {
@@ -221,6 +255,12 @@ namespace ToolNBack
             if (_sessionFinished)
                 return;
 
+            if (_inProbe)
+            {
+                TickProbe(Time.deltaTime);
+                return;
+            }
+
             if (_multiBlockSession && _inRest)
             {
                 TickRest(Time.deltaTime);
@@ -253,6 +293,14 @@ namespace ToolNBack
         /// <summary>Participant response entry point (controller trigger or keyboard).</summary>
         public void HandleOnInput()
         {
+            // During the effort rating the response button confirms the chosen number.
+            if (_inProbe)
+            {
+                if (_probe.Confirm())
+                    FinishEffortProbe();
+                return;
+            }
+
             if (Task == null || Task.IsFinished || !_running)
                 return;
 
@@ -277,6 +325,67 @@ namespace ToolNBack
             // feedback-evoked potentials would confound the WM-load contrast.
             if (_feedbackAllowedThisBlock && Task.CurrentTool >= 0)
                 ShowFeedback(Task.CurrentTool, correct: isTarget);
+        }
+
+        /// <summary>
+        /// Experimenter control (the Tool NBack inspector button): practice repeats
+        /// round after round until this is called; it then closes the open trial and
+        /// round in the markers and moves the session on to the next plan entry.
+        /// Ignored outside practice, so a recorded block can never be skipped.
+        /// </summary>
+        public void EndPractice()
+        {
+            if (!IsPracticing)
+                return;
+
+            if (_running && Task != null && !Task.IsFinished)
+            {
+                if (Task.CurrentTool >= 0)
+                    NBackEvents.RaiseStimulusOffset(Task.Index, _toolNames[Task.CurrentTool], Task.IsInputTriggered);
+
+                int scored = Task.Index; // trials already scored in this round
+                NBackEvents.RaiseTaskFinished(new TaskFinishedData
+                {
+                    TaskIndex = _blockIndex,
+                    Kind = TaskKind.NBack,
+                    N = _settings.N,
+                    CorrectCount = Task.NumberOfCorrectAnswers,
+                    ErrorRate = scored > 0 ? (scored - Task.NumberOfCorrectAnswers) / (float)scored : 0f
+                });
+            }
+
+            Debug.Log($"[ToolNBack] Practice ended by the experimenter in round {PracticeRound}.");
+            _running = false;
+            ClearFeedback();
+            if (_visibleInstance != null)
+            {
+                _visibleInstance.SetActive(false);
+                _visibleInstance = null;
+            }
+            _completedNonRestBlocks++;
+            ContinueAfterBlock();
+        }
+
+        /// <summary>Thumbstick or arrow-key step on the effort rating scale.</summary>
+        public void HandleProbeNavigate(int direction)
+        {
+            if (!_inProbe)
+                return;
+
+            _probe.Move(direction);
+            _probePanel.SetSelection(_probe.Selection);
+        }
+
+        /// <summary>A number typed on the keyboard — the experimenter enters what the participant says.</summary>
+        public void HandleProbeChoice(int value)
+        {
+            if (!_inProbe)
+                return;
+
+            bool answered = _probe.Choose(value);
+            _probePanel.SetSelection(_probe.Selection);
+            if (answered)
+                FinishEffortProbe();
         }
         #endregion
 
@@ -349,21 +458,26 @@ namespace ToolNBack
             }
 
             _running = false;
-            _completedNonRestBlocks++;
 
-            // Practice results stay out of the session totals — practice is excluded
-            // from analysis and would skew the summary the experimenter reads.
-            if (_currentBlock.Kind == SessionBlockKind.Task)
+            // Practice is experimenter-paced: another round starts until EndPractice()
+            // (the inspector button) moves the session on. Its results stay out of the
+            // session totals — practice is excluded from analysis.
+            if (_currentBlock.Kind == SessionBlockKind.Practice)
             {
-                _sessionHits += _hits;
-                _sessionMisses += _misses;
-                _sessionFalseAlarms += _falseAlarms;
-                _sessionCorrectRejections += _correctRejections;
-                _sessionCorrect += Task.NumberOfCorrectAnswers;
-                _sessionTrials += _sequence.Length;
+                _practiceRound++;
+                StartBlockRun();
+                return;
             }
 
-            EnterBlock(_blockIndex + 1);
+            _completedNonRestBlocks++;
+            _sessionHits += _hits;
+            _sessionMisses += _misses;
+            _sessionFalseAlarms += _falseAlarms;
+            _sessionCorrectRejections += _correctRejections;
+            _sessionCorrect += Task.NumberOfCorrectAnswers;
+            _sessionTrials += _sequence.Length;
+
+            ContinueAfterBlock();
         }
         #endregion
 
@@ -477,10 +591,22 @@ namespace ToolNBack
             }
 
             _inRest = false;
+            _practiceRound = 0;
             _settings = _overridePreset ? _customSettings : WMLoadPresets.Get(block.Level);
-            int derived = SessionPlanner.DeriveBlockSeed(_randomSeed, index);
-            PrepareBlockTask(derived == 0 ? Environment.TickCount : derived);
             _feedbackAllowedThisBlock = block.Kind == SessionBlockKind.Practice && _showResponseFeedback;
+            StartBlockRun();
+        }
+
+        /// <summary>
+        /// Prepares a fresh run of the current non-rest block and its countdown. Practice
+        /// calls it again for every further round, each with its own sequence.
+        /// </summary>
+        private void StartBlockRun()
+        {
+            int seed = SessionPlanner.DeriveBlockSeed(_randomSeed, _blockIndex);
+            if (seed != 0 && _practiceRound > 0)
+                seed = unchecked(seed + _practiceRound * 104729) | 1; // reproducible, distinct per round, never 0
+            PrepareBlockTask(seed == 0 ? Environment.TickCount : seed);
             _delayRemaining = Mathf.Max(0f, _startDelay);
 
             if (_settings.N == 0 && _delayRemaining > 0f)
@@ -522,6 +648,82 @@ namespace ToolNBack
             SetInstruction(
                 "Rest\nRelax, keep still and keep the headset on.\n\n" +
                 $"Continuing in {second}...");
+        }
+
+        /// <summary>The rating scale sits where the tools appear, centred and facing the user.</summary>
+        private void CreateProbePanel()
+        {
+            Vector3 local = _layout.GetLocalPosition(0.5f, 0.5f);
+            _probePanel = EffortProbePanel.Create(transform,
+                _panelAnchor.TransformPoint(local),
+                _panelAnchor.rotation * _layout.GetLocalRotation(0.5f, 0.5f) * Quaternion.Euler(0f, 180f, 0f),
+                _instructionBackdropColor);
+        }
+
+        /// <summary>The practice stage or a recorded block is over: ask the effort rating, or go straight on.</summary>
+        private void ContinueAfterBlock()
+        {
+            if (_effortProbeAfterBlocks && _probePanel != null)
+            {
+                StartEffortProbe();
+                return;
+            }
+
+            EnterBlock(_blockIndex + 1);
+        }
+
+        private void StartEffortProbe()
+        {
+            _inProbe = true;
+            _probe = new EffortProbe(1, _effortProbeScalePoints, _effortProbeTimeout);
+            SetInstruction(string.Empty);
+            _probePanel.Show(_effortProbeQuestion, _effortProbeLowLabel, _effortProbeHighLabel,
+                _probe.ScaleMin, _probe.ScaleMax);
+
+            NBackEvents.RaiseEffortProbeStarted(new EffortProbeStartedData
+            {
+                TaskIndex = _blockIndex,
+                N = _settings.N,
+                ScaleMin = _probe.ScaleMin,
+                ScaleMax = _probe.ScaleMax,
+                Practice = _currentBlock.Kind == SessionBlockKind.Practice
+            });
+        }
+
+        /// <summary>Advances the effort rating; it closes by itself on its timeout.</summary>
+        private void TickProbe(float deltaTime)
+        {
+            if (!_inProbe)
+                return;
+
+            _probe.Tick(deltaTime);
+            if (_probe.IsFinished)
+                FinishEffortProbe();
+        }
+
+        /// <summary>Logs the answer (or the timeout), hides the scale and moves on to the washout rest.</summary>
+        private void FinishEffortProbe()
+        {
+            _inProbe = false;
+            LastEffortRating = _probe.Rating;
+            _probePanel.Hide();
+
+            NBackEvents.RaiseEffortRated(new EffortRatedData
+            {
+                TaskIndex = _blockIndex,
+                N = _settings.N,
+                ScaleMin = _probe.ScaleMin,
+                ScaleMax = _probe.ScaleMax,
+                Rating = _probe.Rating ?? 0,
+                ResponseTime = _probe.ResponseTime,
+                TimedOut = _probe.TimedOut,
+                Practice = _currentBlock.Kind == SessionBlockKind.Practice
+            });
+            Debug.Log(_probe.Rating.HasValue
+                ? $"[ToolNBack] Effort rating for block {_blockIndex}: {_probe.Rating} after {_probe.ResponseTime:F1} s."
+                : $"[ToolNBack] Effort rating for block {_blockIndex} timed out without an answer.");
+
+            EnterBlock(_blockIndex + 1);
         }
 
         /// <summary>Last plan entry done: end the session and show the aggregate summary.</summary>
@@ -747,9 +949,9 @@ namespace ToolNBack
             string levelName = _overridePreset
                 ? "Custom"
                 : (_multiBlockSession ? _currentBlock.Level : _level).ToString();
-            string prefix = _multiBlockSession && _currentBlock.Kind == SessionBlockKind.Practice
-                ? "PRACTICE - "
-                : string.Empty;
+            string prefix = !(_multiBlockSession && _currentBlock.Kind == SessionBlockKind.Practice)
+                ? string.Empty
+                : _practiceRound > 0 ? $"PRACTICE (round {_practiceRound + 1}) - " : "PRACTICE - ";
 
             if (_settings.N == 0)
                 return $"{prefix}Tool N-Back ({levelName}, 0-back)\nRemember the tool shown above:\nrespond whenever the {_toolNames[0]} appears.";

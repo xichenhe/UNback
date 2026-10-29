@@ -89,5 +89,61 @@ namespace ToolNBack.Tests
                 onDisable.Invoke(component, null);
             }
         }
+
+        [Test]
+        public void RatingScale_IsDrivenByEitherStick_OrTheArrowKeys()
+        {
+            Type type = Type.GetType("ToolNBack.ToolNBackResponseInput, Assembly-CSharp");
+            Assert.NotNull(type, "ToolNBackResponseInput must exist in Assembly-CSharp");
+
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            var component = (MonoBehaviour)new GameObject("Rating Input Test").AddComponent(type);
+
+            // Lab-specific stick paths (found with Log Controller Buttons) are added without a rebuild.
+            var serialized = new SerializedObject(component);
+            SerializedProperty extras = serialized.FindProperty("_extraNavigationBindings");
+            Assert.NotNull(extras, "the input component must expose _extraNavigationBindings in the Inspector");
+            extras.arraySize = 1;
+            extras.GetArrayElementAtIndex(0).stringValue = "<XRController>/secondary2DAxis";
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+
+            MethodInfo onEnable = type.GetMethod("OnEnable", BindingFlags.Instance | BindingFlags.NonPublic);
+            MethodInfo onDisable = type.GetMethod("OnDisable", BindingFlags.Instance | BindingFlags.NonPublic);
+            onEnable.Invoke(component, null);
+            try
+            {
+                string[] stick = BindingPaths(type, component, "_probeStickAction");
+                CollectionAssert.Contains(stick, "<XRController>/primary2DAxis",
+                    "OpenXR and most XR plugins expose the thumbstick as primary2DAxis");
+                CollectionAssert.Contains(stick, "<XRController>/thumbstick");
+                CollectionAssert.Contains(stick, "<XRController>/secondary2DAxis",
+                    "inspector-provided stick paths must be added");
+
+                CollectionAssert.Contains(BindingPaths(type, component, "_probeLeftAction"), "<Keyboard>/leftArrow");
+                CollectionAssert.Contains(BindingPaths(type, component, "_probeRightAction"), "<Keyboard>/rightArrow");
+
+                // The experimenter types the number the participant says (Index buttons
+                // may not arrive in recording mode), on the number row or the numpad.
+                string[] digits = BindingPaths(type, component, "_probeDigitAction");
+                for (int digit = 1; digit <= 9; digit++)
+                {
+                    CollectionAssert.Contains(digits, $"<Keyboard>/{digit}");
+                    CollectionAssert.Contains(digits, $"<Keyboard>/numpad{digit}");
+                }
+            }
+            finally
+            {
+                onDisable.Invoke(component, null);
+            }
+        }
+
+        private static string[] BindingPaths(Type type, MonoBehaviour component, string fieldName)
+        {
+            FieldInfo field = type.GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(field, $"the input component must keep its {fieldName}");
+            var action = (InputAction)field.GetValue(component);
+            Assert.NotNull(action, $"OnEnable must create {fieldName}");
+            return action.bindings.Select(b => b.path).ToArray();
+        }
     }
 }

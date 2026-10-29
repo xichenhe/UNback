@@ -92,6 +92,34 @@ namespace ToolNBack
         }
 
         /// <summary>
+        /// Wall-clock length of a plan as the manager runs it: each rest lasts its
+        /// RestDuration; each practice/task block shows the <paramref name="startDelay"/>
+        /// countdown, then SequenceLength trials of stimulus + inter-stimulus time, then
+        /// the effort rating (<paramref name="probeSeconds"/>, 0 when ratings are off).
+        /// Practice counts one round — it repeats until the experimenter ends it.
+        /// </summary>
+        public static float EstimateDurationSeconds(IList<SessionBlock> plan, float startDelay,
+            Func<WMLoadLevel, ToolNBackSettings> settingsFor, float probeSeconds = 0f)
+        {
+            float seconds = 0f;
+            foreach (SessionBlock block in plan)
+            {
+                if (block.Kind == SessionBlockKind.Rest)
+                {
+                    seconds += block.RestDuration;
+                    continue;
+                }
+
+                ToolNBackSettings settings = settingsFor(block.Level);
+                seconds += Math.Max(0f, startDelay)
+                           + settings.SequenceLength * (settings.StimulusDuration + settings.InterStimulusDuration)
+                           + Math.Max(0f, probeSeconds);
+            }
+
+            return seconds;
+        }
+
+        /// <summary>
         /// Stable per-block seed so every block has its own reproducible sequence and
         /// stimulus positions. Base seed 0 stays 0 (the time-based-seed sentinel).
         /// </summary>

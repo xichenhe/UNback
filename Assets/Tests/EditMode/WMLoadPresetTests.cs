@@ -44,11 +44,27 @@ namespace ToolNBack.Tests
             // rate give equal spectral epochs and remove the rate confound.
             ToolNBackSettings s = WMLoadPresets.Get(level);
 
-            Assert.AreEqual(40, s.SequenceLength, "equal trial count for equal event epochs");
+            Assert.AreEqual(WMLoadPresets.Get(WMLoadLevel.Optimal).SequenceLength, s.SequenceLength,
+                "equal trial count for equal event epochs");
             Assert.AreEqual(1.5f, s.StimulusDuration, 1e-4f);
             Assert.AreEqual(2.0f, s.InterStimulusDuration, 1e-4f);
             Assert.AreEqual(0.3f, s.TargetRate, 1e-4f);
             Assert.AreEqual(8, s.ToolPoolSize);
+        }
+
+        [TestCase(WMLoadLevel.Low)]
+        [TestCase(WMLoadLevel.Optimal)]
+        [TestCase(WMLoadLevel.High)]
+        public void Blocks_LastAboutFortyFiveSeconds(WMLoadLevel level)
+        {
+            // Four short blocks per level instead of two long ones: the same task time
+            // per level, but enough blocks to validate a classifier by holding whole
+            // blocks out, so slow drift between blocks cannot pass for load.
+            ToolNBackSettings s = WMLoadPresets.Get(level);
+
+            float seconds = s.SequenceLength * (s.StimulusDuration + s.InterStimulusDuration);
+
+            Assert.That(seconds, Is.InRange(42f, 48f), $"a {level} block lasts {seconds:F1} s");
         }
 
         [TestCase(WMLoadLevel.Low)]

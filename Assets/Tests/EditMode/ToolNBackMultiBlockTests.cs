@@ -82,9 +82,110 @@ namespace ToolNBack.Tests
 
             string summary = ReadInstructionText(manager);
             StringAssert.Contains("Session complete", summary);
-            // Never responding: hits 0 of all targets. Preset target counts are exact:
-            // 0-back 12, 2-back 11, 3-back 11 -> 34 targets across the three blocks.
-            StringAssert.Contains("Hits: 0/34", summary);
+            // Never responding: hits 0 of all targets. Preset target counts are exact,
+            // round(0.3 x (13 - N)): 0-back 4, 2-back 3, 3-back 3 -> 10 across the three blocks.
+            StringAssert.Contains("Hits: 0/10", summary);
+        }
+
+        [Test]
+        public void RecordedBlock_IsFollowedByTheEffortRating_BeforeItsWashoutRest()
+        {
+            MonoBehaviour manager = NewMultiBlockManager(cbIndex: 0, reps: 1, includePractice: false,
+                effortProbe: true);
+            TickRest(manager, Rest + 0.1f);
+            BeginRunning(manager);
+
+            DriveToFinish(GetTask(manager));
+
+            Assert.IsTrue(IsAskingEffort(manager), "the rating comes right after the block, while it is fresh");
+            Assert.IsTrue(ProbePanelVisible(manager), "the rating scale must be on screen");
+            StringAssert.DoesNotContain("Rest", ReadInstructionText(manager),
+                "the washout rest starts only after the rating");
+        }
+
+        [Test]
+        public void ConfirmedRating_IsRecorded_AndTheWashoutRestFollows()
+        {
+            MonoBehaviour manager = NewMultiBlockManager(cbIndex: 0, reps: 1, includePractice: false,
+                effortProbe: true);
+            TickRest(manager, Rest + 0.1f);
+            BeginRunning(manager);
+            DriveToFinish(GetTask(manager));
+
+            Navigate(manager, 1); // first push selects the middle, 5
+            Navigate(manager, 1); // 6
+            TickProbe(manager, 1f); // past the lockout
+            HandleOnInput(manager); // the response button confirms
+
+            Assert.AreEqual(6, LastEffortRating(manager));
+            Assert.IsFalse(IsAskingEffort(manager));
+            Assert.IsFalse(ProbePanelVisible(manager), "the scale must leave the view for the rest");
+            StringAssert.Contains("Rest", ReadInstructionText(manager));
+        }
+
+        [Test]
+        public void UnansweredRating_TimesOut_WithoutARating_AndTheSessionGoesOn()
+        {
+            MonoBehaviour manager = NewMultiBlockManager(cbIndex: 0, reps: 1, includePractice: false,
+                effortProbe: true, probeTimeout: 5f);
+            TickRest(manager, Rest + 0.1f);
+            BeginRunning(manager);
+            DriveToFinish(GetTask(manager));
+
+            TickProbe(manager, 5.1f);
+
+            Assert.IsNull(LastEffortRating(manager), "a skipped rating must be logged as missing, not as a number");
+            Assert.IsFalse(IsAskingEffort(manager));
+            StringAssert.Contains("Rest", ReadInstructionText(manager));
+        }
+
+        [Test]
+        public void PressWithNothingSelected_DoesNotAnswerTheRating()
+        {
+            MonoBehaviour manager = NewMultiBlockManager(cbIndex: 0, reps: 1, includePractice: false,
+                effortProbe: true);
+            TickRest(manager, Rest + 0.1f);
+            BeginRunning(manager);
+            DriveToFinish(GetTask(manager));
+
+            TickProbe(manager, 1f);
+            HandleOnInput(manager);
+
+            Assert.IsTrue(IsAskingEffort(manager), "the participant must pick a number before confirming");
+        }
+
+        [Test]
+        public void TypedDigit_AnswersTheRating()
+        {
+            MonoBehaviour manager = NewMultiBlockManager(cbIndex: 0, reps: 1, includePractice: false,
+                effortProbe: true);
+            TickRest(manager, Rest + 0.1f);
+            BeginRunning(manager);
+            DriveToFinish(GetTask(manager));
+            TickProbe(manager, 1f);
+
+            MethodInfo choose = ManagerType.GetMethod("HandleProbeChoice");
+            Assert.NotNull(choose, "the manager must expose HandleProbeChoice(int) for the digit keys");
+            choose.Invoke(manager, new object[] { 8 });
+
+            Assert.AreEqual(8, LastEffortRating(manager));
+            StringAssert.Contains("Rest", ReadInstructionText(manager));
+        }
+
+        [Test]
+        public void EndingPractice_AsksTheRating_WithTheButtonDark()
+        {
+            MonoBehaviour manager = NewMultiBlockManager(cbIndex: 0, reps: 1, includePractice: true,
+                effortProbe: true);
+            TickRest(manager, Rest + 0.1f);
+            BeginRunning(manager);
+            GetTask(manager).Run(0.05f);
+
+            EndPractice(manager);
+
+            Assert.IsTrue(IsAskingEffort(manager), "practice also teaches the rating scale");
+            Assert.IsFalse(IsPracticing(manager), "End Practice must go dark while the rating is up");
+            Assert.IsFalse(AnyToolVisible(manager), "the practice tool must disappear");
         }
 
         [Test]
@@ -103,7 +204,7 @@ namespace ToolNBack.Tests
             Assert.NotNull(ActiveTintColor(manager),
                 "practice blocks must show response feedback when enabled");
 
-            DriveToFinish(practice);
+            EndPractice(manager);
 
             // Practice -> rest -> first recorded task block (feedback must stay dark).
             TickRest(manager, Rest + 0.1f);
@@ -114,6 +215,63 @@ namespace ToolNBack.Tests
             HandleOnInput(manager);
             Assert.IsNull(ActiveTintColor(manager),
                 "recorded blocks must never flash feedback — feedback-evoked potentials confound the WM-load contrast");
+        }
+
+        [Test]
+        public void Practice_StartsAFreshRound_InsteadOfEndingOnItsOwn()
+        {
+            MonoBehaviour manager = NewMultiBlockManager(cbIndex: 0, reps: 1, includePractice: true);
+            TickRest(manager, Rest + 0.1f);
+            ToolNBackTask firstRound = GetTask(manager);
+            BeginRunning(manager);
+
+            DriveToFinish(firstRound);
+
+            ToolNBackTask nextRound = GetTask(manager);
+            Assert.AreNotSame(firstRound, nextRound, "a finished practice round must be followed by another round");
+            Assert.AreEqual(2, nextRound.N, "the new round is practice again (Optimal, 2-back)");
+            Assert.AreNotEqual(string.Join(",", firstRound.Sequence), string.Join(",", nextRound.Sequence),
+                "each round needs a fresh sequence so it cannot be memorized");
+            Assert.IsTrue(IsPracticing(manager), "practice only ends when the experimenter ends it");
+            StringAssert.DoesNotContain("Rest", ReadInstructionText(manager));
+        }
+
+        [Test]
+        public void EndPractice_HidesTheTool_AndTheSessionMovesOnToTheRecordedBlocks()
+        {
+            MonoBehaviour manager = NewMultiBlockManager(cbIndex: 0, reps: 1, includePractice: true);
+            TickRest(manager, Rest + 0.1f);
+            ToolNBackTask practice = GetTask(manager);
+            BeginRunning(manager);
+            practice.Run(0.05f); // a practice tool is on the panel
+            Assert.IsTrue(IsPracticing(manager));
+
+            EndPractice(manager);
+
+            Assert.IsFalse(IsPracticing(manager));
+            Assert.IsFalse(AnyToolVisible(manager), "the practice tool must disappear");
+            StringAssert.Contains("Rest", ReadInstructionText(manager), "practice is followed by its washout rest");
+
+            TickRest(manager, Rest + 0.1f);
+            ToolNBackTask recorded = GetTask(manager);
+            Assert.AreNotSame(practice, recorded, "a recorded block must follow the post-practice rest");
+            Assert.AreEqual(0, recorded.N, "counterbalance order 0 starts the recorded blocks with Low (0-back)");
+        }
+
+        [Test]
+        public void EndPractice_IsIgnoredDuringARecordedBlock()
+        {
+            MonoBehaviour manager = NewMultiBlockManager(cbIndex: 0, reps: 1, includePractice: false);
+            TickRest(manager, Rest + 0.1f);
+            ToolNBackTask recorded = GetTask(manager);
+            BeginRunning(manager);
+            recorded.Run(0.05f);
+
+            EndPractice(manager);
+
+            Assert.AreSame(recorded, GetTask(manager), "the button must never skip a recorded block");
+            Assert.IsFalse(recorded.IsFinished);
+            Assert.IsTrue(AnyToolVisible(manager), "the recorded block keeps running");
         }
 
         [Test]
@@ -142,7 +300,7 @@ namespace ToolNBack.Tests
         // --- harness -------------------------------------------------------------
 
         private static MonoBehaviour NewMultiBlockManager(int cbIndex, int reps, bool includePractice,
-            bool showFeedback = false)
+            bool showFeedback = false, bool effortProbe = false, float probeTimeout = 20f)
         {
             Assert.NotNull(ManagerType, "ToolNBackManagerBehaviour must exist in Assembly-CSharp");
 
@@ -162,6 +320,17 @@ namespace ToolNBack.Tests
             serialized.FindProperty("_interBlockRestDuration").floatValue = Rest;
             serialized.FindProperty("_includePracticeBlock").boolValue = includePractice;
             serialized.FindProperty("_showResponseFeedback").boolValue = showFeedback;
+            // The block-flow tests above run without the rating; the rating tests opt in.
+            SerializedProperty probe = serialized.FindProperty("_effortProbeAfterBlocks");
+            if (probe != null)
+            {
+                probe.boolValue = effortProbe;
+                serialized.FindProperty("_effortProbeTimeout").floatValue = probeTimeout;
+            }
+            else if (effortProbe)
+            {
+                Assert.Fail("the manager must expose an _effortProbeAfterBlocks switch");
+            }
             serialized.ApplyModifiedPropertiesWithoutUndo();
 
             ManagerType.GetMethod("Start", BindingFlags.Instance | BindingFlags.NonPublic)
@@ -184,6 +353,67 @@ namespace ToolNBack.Tests
         private static void HandleOnInput(MonoBehaviour manager)
         {
             ManagerType.GetMethod("HandleOnInput").Invoke(manager, null);
+        }
+
+        private static void EndPractice(MonoBehaviour manager)
+        {
+            MethodInfo endPractice = ManagerType.GetMethod("EndPractice");
+            Assert.NotNull(endPractice, "the manager must expose EndPractice() for the experimenter's inspector button");
+            endPractice.Invoke(manager, null);
+        }
+
+        private static bool IsPracticing(MonoBehaviour manager)
+        {
+            PropertyInfo isPracticing = ManagerType.GetProperty("IsPracticing");
+            Assert.NotNull(isPracticing, "the manager must expose IsPracticing for the inspector button");
+            return (bool)isPracticing.GetValue(manager);
+        }
+
+        private static bool IsAskingEffort(MonoBehaviour manager)
+        {
+            PropertyInfo asking = ManagerType.GetProperty("IsAskingEffort");
+            Assert.NotNull(asking, "the manager must expose IsAskingEffort");
+            return (bool)asking.GetValue(manager);
+        }
+
+        private static int? LastEffortRating(MonoBehaviour manager)
+        {
+            PropertyInfo rating = ManagerType.GetProperty("LastEffortRating");
+            Assert.NotNull(rating, "the manager must expose LastEffortRating");
+            return (int?)rating.GetValue(manager);
+        }
+
+        private static void Navigate(MonoBehaviour manager, int direction)
+        {
+            MethodInfo navigate = ManagerType.GetMethod("HandleProbeNavigate");
+            Assert.NotNull(navigate, "the manager must expose HandleProbeNavigate(int) for the thumbstick");
+            navigate.Invoke(manager, new object[] { direction });
+        }
+
+        private static void TickProbe(MonoBehaviour manager, float seconds)
+        {
+            MethodInfo tick = ManagerType.GetMethod("TickProbe", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.NotNull(tick, "the manager must advance the rating in TickProbe(float)");
+            tick.Invoke(manager, new object[] { seconds });
+        }
+
+        private static bool ProbePanelVisible(MonoBehaviour manager)
+        {
+            Transform panel = manager.transform.Find("Effort Probe Canvas");
+            Assert.NotNull(panel, "the manager must create the effort rating canvas");
+            return panel.gameObject.activeSelf;
+        }
+
+        private static bool AnyToolVisible(MonoBehaviour manager)
+        {
+            Transform pool = manager.transform.Find("Tool Pool");
+            Assert.NotNull(pool, "Start must create the tool pool");
+            foreach (Transform tool in pool)
+            {
+                if (tool.gameObject.activeSelf)
+                    return true;
+            }
+            return false;
         }
 
         private static ToolNBackTask GetTask(MonoBehaviour manager)

@@ -95226,9 +95226,9 @@ MonoBehaviour:
   _feedbackGlowIntensity: 0.6
   _multiBlockSession: 1
   _counterbalanceIndex: 0
-  _repetitionsPerLevel: 2
+  _repetitionsPerLevel: 4
   _baselineRestDuration: 90
-  _interBlockRestDuration: 20
+  _interBlockRestDuration: 15
   _includePracticeBlock: 1
   _customBlocks: []
   _instructionText: {fileID: 0}

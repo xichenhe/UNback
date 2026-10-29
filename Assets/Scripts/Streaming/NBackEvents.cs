@@ -114,6 +114,37 @@ namespace NBackStreaming
         public string Previous;
     }
 
+    /// <summary>The single-item effort rating appeared after a block.</summary>
+    public struct EffortProbeStartedData
+    {
+        /// <summary>Index of the rated block.</summary>
+        public int TaskIndex;
+        /// <summary>n of the rated block.</summary>
+        public int N;
+        public int ScaleMin;
+        public int ScaleMax;
+        /// <summary>True when the rated block is the practice stage.</summary>
+        public bool Practice;
+    }
+
+    /// <summary>The single-item effort rating closed, answered or timed out.</summary>
+    public struct EffortRatedData
+    {
+        /// <summary>Index of the rated block.</summary>
+        public int TaskIndex;
+        /// <summary>n of the rated block.</summary>
+        public int N;
+        public int ScaleMin;
+        public int ScaleMax;
+        /// <summary>The chosen number; 0 = no answer (timed out).</summary>
+        public int Rating;
+        /// <summary>Seconds from the scale appearing to the answer; negative without an answer.</summary>
+        public float ResponseTime;
+        public bool TimedOut;
+        /// <summary>True when the rated block is the practice stage.</summary>
+        public bool Practice;
+    }
+
     /// <summary>
     /// Static event bus decoupling the n-back task logic from LSL streaming and file logging.
     /// Task classes raise events here; NBackMarkerStreamer and NBackEventFileLogger subscribe.
@@ -130,6 +161,8 @@ namespace NBackStreaming
         public static event Action<TaskFinishedData> TaskFinished;
         public static event Action SessionEnded;
         public static event Action<DisplayChangedData> DisplayChanged;
+        public static event Action<EffortProbeStartedData> EffortProbeStarted;
+        public static event Action<EffortRatedData> EffortRated;
 
         private static int _pressCountThisTrial;
 
@@ -228,6 +261,16 @@ namespace NBackStreaming
             });
         }
 
+        public static void RaiseEffortProbeStarted(EffortProbeStartedData data)
+        {
+            EffortProbeStarted?.Invoke(data);
+        }
+
+        public static void RaiseEffortRated(EffortRatedData data)
+        {
+            EffortRated?.Invoke(data);
+        }
+
         /// <summary>
         /// Signal-detection classification: hit / miss / false alarm / correct rejection.
         /// </summary>
@@ -315,6 +358,8 @@ namespace NBackStreaming
         public const int CodeSessionEnd = 8;
         public const int CodeDisplayOn = 9;
         public const int CodeDisplayOff = 10;
+        public const int CodeEffortProbe = 11;
+        public const int CodeEffortRating = 12;
 
         /// <summary>Number of channels in the NBackEventCodesLSL stream.</summary>
         public const int CodeChannels = 6;
@@ -410,6 +455,20 @@ namespace NBackStreaming
                 ? $"display_on|text={Sanitize(d.Text)}"
                 : $"display_off|prev={Sanitize(d.Previous)}";
 
+        public static string Marker(EffortProbeStartedData d) =>
+            $"effort_probe|index={d.TaskIndex}|n={d.N}|scale={d.ScaleMin}-{d.ScaleMax}" +
+            (d.Practice ? "|practice=1" : string.Empty);
+
+        public static string Marker(EffortRatedData d)
+        {
+            bool answered = d.Rating > 0;
+            string rating = answered ? d.Rating.ToString(System.Globalization.CultureInfo.InvariantCulture) : "na";
+            string rt = answered && d.ResponseTime >= 0f ? F(d.ResponseTime, "F3") : "na";
+            return $"effort_rating|index={d.TaskIndex}|n={d.N}|rating={rating}|rt={rt}" +
+                   $"|scale={d.ScaleMin}-{d.ScaleMax}|timeout={(d.TimedOut ? 1 : 0)}" +
+                   (d.Practice ? "|practice=1" : string.Empty);
+        }
+
         // --- Numeric event samples for UNbackEventMarkerLSL (CLAd-compatible conventions:
         // channel 0 = Unity time for LSL<->Unity clock-offset recovery, float32, source_id "").
         // Channels: [0] unityTime, [1] eventCode, [2] blockIndex, [3] trialIndex,
@@ -473,6 +532,24 @@ namespace NBackStreaming
 
         public static float[] Event(DisplayChangedData d, float unityTime, MarkerBlockContext ctx) =>
             Event(d.IsOn ? CodeDisplayOn : CodeDisplayOff, unityTime, ctx);
+
+        // Ratings carry their own block context — the rated block — so they stay correct
+        // even when practice was ended before its first round started.
+        public static float[] Event(EffortProbeStartedData d, float unityTime) =>
+            Event(CodeEffortProbe, unityTime, RatedBlockContext(d.TaskIndex, d.Practice), n: d.N);
+
+        /// <summary>Channel 5 carries the rating (0 = none), channel 6 its response time in ms.</summary>
+        public static float[] Event(EffortRatedData d, float unityTime)
+        {
+            bool answered = d.Rating > 0;
+            return Event(CodeEffortRating, unityTime, RatedBlockContext(d.TaskIndex, d.Practice),
+                outcome: answered ? d.Rating : 0f,
+                rtMs: answered && d.ResponseTime >= 0f ? d.ResponseTime * 1000f : -1f,
+                n: d.N);
+        }
+
+        private static MarkerBlockContext RatedBlockContext(int taskIndex, bool practice) =>
+            new MarkerBlockContext { BlockIndex = taskIndex, BlockKind = practice ? BlockKindPractice : BlockKindTask };
     }
 
     /// <summary>

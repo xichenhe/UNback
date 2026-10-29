@@ -45,14 +45,17 @@ namespace ToolNBack
         {
             // All levels share identical timing, trial count and pool so that N
             // (working-memory load) is the only difference between conditions:
-            // equal block duration (40 x 3.5 s = 140 s) and near-equal event counts
+            // equal block duration (13 x 3.5 s = 45.5 s) and near-equal event counts
             // per condition for EEG epoching, with no stimulus-rate confound.
+            // Short blocks so the multi-block session runs four per level: the same
+            // task time as two 91 s blocks, but a classifier can be validated by
+            // holding out whole blocks, so slow drift cannot pass for load.
             var settings = new ToolNBackSettings
             {
                 N = 2, // Optimal: classic 2-back
                 StimulusDuration = 1.5f,
                 InterStimulusDuration = 2.0f,
-                SequenceLength = 40,
+                SequenceLength = 13,
                 TargetRate = 0.3f,
                 ToolPoolSize = 8
             };

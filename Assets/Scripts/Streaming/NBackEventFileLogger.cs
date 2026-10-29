@@ -43,6 +43,8 @@ namespace NBackStreaming
             NBackEvents.TaskFinished += HandleTaskFinished;
             NBackEvents.SessionEnded += HandleSessionEnded;
             NBackEvents.DisplayChanged += HandleDisplayChanged;
+            NBackEvents.EffortProbeStarted += HandleEffortProbeStarted;
+            NBackEvents.EffortRated += HandleEffortRated;
         }
 
         private void OnDestroy()
@@ -56,6 +58,8 @@ namespace NBackStreaming
             NBackEvents.TaskFinished -= HandleTaskFinished;
             NBackEvents.SessionEnded -= HandleSessionEnded;
             NBackEvents.DisplayChanged -= HandleDisplayChanged;
+            NBackEvents.EffortProbeStarted -= HandleEffortProbeStarted;
+            NBackEvents.EffortRated -= HandleEffortRated;
 
             CloseLogFile();
         }
@@ -183,6 +187,41 @@ namespace NBackStreaming
                 AppendBool(sb, "is_on", d.IsOn);
                 AppendString(sb, "text", d.Text);
                 AppendString(sb, "prev", d.Previous);
+            });
+        }
+
+        private void HandleEffortProbeStarted(EffortProbeStartedData d)
+        {
+            WriteEvent("effort_probe", NBackMarkerFormat.Marker(d), sb =>
+            {
+                AppendInt(sb, "index", d.TaskIndex);
+                AppendInt(sb, "n", d.N);
+                AppendInt(sb, "scale_min", d.ScaleMin);
+                AppendInt(sb, "scale_max", d.ScaleMax);
+                AppendBool(sb, "practice", d.Practice);
+            });
+        }
+
+        private void HandleEffortRated(EffortRatedData d)
+        {
+            WriteEvent("effort_rating", NBackMarkerFormat.Marker(d), sb =>
+            {
+                AppendInt(sb, "index", d.TaskIndex);
+                AppendInt(sb, "n", d.N);
+                AppendInt(sb, "scale_min", d.ScaleMin);
+                AppendInt(sb, "scale_max", d.ScaleMax);
+                if (d.Rating > 0)
+                {
+                    AppendInt(sb, "rating", d.Rating);
+                    AppendFloat(sb, "rt", d.ResponseTime);
+                }
+                else
+                {
+                    AppendNull(sb, "rating");
+                    AppendNull(sb, "rt");
+                }
+                AppendBool(sb, "timeout", d.TimedOut);
+                AppendBool(sb, "practice", d.Practice);
             });
         }
         #endregion
